@@ -1,5 +1,5 @@
 // ==========================================================================
-// Kinopy Companion PWA - Main Logic (Desktop Companion Exact Feature Parity)
+// Kinopy Companion PWA - Main Logic (Full Desktop Feature Parity)
 // ==========================================================================
 
 const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ（親友 × 執事）です。
@@ -25,7 +25,7 @@ const state = {
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
   
-  // トークン消費集計 (Mac版と完全同一キー)
+  // トークン消費集計
   todayTokens: parseInt(localStorage.getItem("gemini_today_tokens") || "0", 10),
   totalTokens: parseInt(localStorage.getItem("gemini_total_tokens") || "0", 10),
   tokenUsageDate: localStorage.getItem("gemini_token_date") || new Date().toISOString().slice(0, 10),
@@ -39,10 +39,15 @@ const state = {
   activeTimer: null,
   timerSecondsRemaining: 0,
   isRecording: false,
-  recognition: null,
+  isSpeaking: false,
   audioUnlocked: false,
-  currentAudio: null
+  sharedAudio: new Audio()
 };
+
+// 録音用
+let mediaRecorder = null;
+let audioChunks = [];
+let audioStream = null;
 
 // 検索状態
 let currentSearchResults = [];
@@ -112,9 +117,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initChatTimeline();
   renderMemos();
   setupEventListeners();
-  initVoiceRecognition();
   fetchKumapyTasks();
-  setInterval(fetchKumapyTasks, 30 * 1000); // 30秒ポーリング
+  setInterval(fetchKumapyTasks, 30 * 1000);
 
   // iOS オーディオアンロック
   document.addEventListener("touchstart", unlockAudioContext, { once: true });
@@ -129,6 +133,10 @@ function unlockAudioContext() {
     if (ctx.state === "suspended") {
       ctx.resume();
     }
+    // 空の無音再生でAudio要素をアクティブ化
+    state.sharedAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+    state.sharedAudio.play().catch(() => {});
+    
     if ("speechSynthesis" in window) {
       const silent = new SpeechSynthesisUtterance("");
       silent.volume = 0;
@@ -140,7 +148,7 @@ function unlockAudioContext() {
 }
 
 // ==========================================
-// トークン消費集計 (Mac版完全同一)
+// トークン消費集計
 // ==========================================
 function initTokenUsage() {
   const todayYmd = new Date().toISOString().slice(0, 10);
@@ -178,6 +186,14 @@ function updateTokenDisplay() {
 }
 
 function loadSettingsToUI() {
+  state.geminiApiKey = localStorage.getItem("gemini_api_key") || "";
+  state.geminiEnabled = localStorage.getItem("gemini_enabled") !== "false";
+  state.kumapyUrl = localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU";
+  state.voiceEnabled = localStorage.getItem("voice_enabled") !== "false";
+  state.voiceSpeaker = localStorage.getItem("voice_speaker") || "11";
+  state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
+  state.voiceRate = parseFloat(localStorage.getItem("voice_rate") || "1.0");
+
   elements.geminiApiToggle.checked = state.geminiEnabled;
   elements.geminiApiKey.value = state.geminiApiKey;
   elements.kumapyUrlInput.value = state.kumapyUrl;
@@ -214,17 +230,31 @@ function setupEventListeners() {
     }
   });
 
-  // 音声入力
-  elements.btnVoiceInput.addEventListener("click", toggleVoiceRecognition);
+  // 音声録音（トグル式マイク録音）
+  elements.btnVoiceInput.addEventListener("click", toggleVoiceRecording);
 
   // 設定パネル
   elements.btnSettingsToggle.addEventListener("click", () => {
+    loadSettingsToUI();
     elements.settingsPanel.classList.remove("hidden");
   });
   elements.btnSettingsClose.addEventListener("click", () => {
+    saveSettings(false);
     elements.settingsPanel.classList.add("hidden");
   });
-  elements.btnSaveSettings.addEventListener("click", saveSettings);
+  elements.btnSaveSettings.addEventListener("click", () => saveSettings(true));
+
+  // APIキーの自動保存（blur / input時）
+  elements.geminiApiKey.addEventListener("input", (e) => {
+    state.geminiApiKey = e.target.value.trim();
+    localStorage.setItem("gemini_api_key", state.geminiApiKey);
+    updateBadgeState();
+  });
+  elements.geminiApiKey.addEventListener("change", (e) => {
+    state.geminiApiKey = e.target.value.trim();
+    localStorage.setItem("gemini_api_key", state.geminiApiKey);
+    updateBadgeState();
+  });
 
   // クイックバッジ切り替え
   elements.aiModeBadge.addEventListener("click", () => {
@@ -276,7 +306,8 @@ function setupEventListeners() {
 
   // 音声試聴
   elements.btnVoicePreview.addEventListener("click", () => {
-    speakText("きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。");
+    unlockAudioContext();
+    speak("きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。");
   });
 
   // クイックアクションボタン
@@ -297,11 +328,277 @@ function setupEventListeners() {
     ];
     const picked = greetings[Math.floor(Math.random() * greetings.length)];
     addMessageBubble("bot", picked, null, true);
-    speakText(picked);
+    speak(picked);
   });
 
-  // チャット検索（Mac版完全同一常時検索）
+  // チャット検索
   initChatSearchEvents();
+}
+
+// ==========================================
+// 音声録音 ＆ Gemini マルチモーダル解析 (Mac版完全同一)
+// ==========================================
+async function toggleVoiceRecording() {
+  unlockAudioContext();
+  if (state.isRecording) {
+    stopVoiceRecording();
+  } else {
+    await startVoiceRecording();
+  }
+}
+
+async function startVoiceRecording() {
+  if (state.isRecording) return;
+
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.isRecording = true;
+    elements.btnVoiceInput.classList.add("recording");
+    elements.listeningIndicator.classList.remove("hidden");
+
+    audioChunks = [];
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") 
+      ? "audio/webm" 
+      : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+
+    const options = mimeType ? { mimeType } : {};
+    mediaRecorder = new MediaRecorder(audioStream, options);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        audioChunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      state.isRecording = false;
+      elements.btnVoiceInput.classList.remove("recording");
+      elements.listeningIndicator.classList.add("hidden");
+
+      if (audioStream) {
+        audioStream.getTracks().forEach(t => t.stop());
+        audioStream = null;
+      }
+
+      if (audioChunks.length === 0) return;
+      const actualType = mimeType || "audio/wav";
+      const audioBlob = new Blob(audioChunks, { type: actualType });
+      await processRecordedAudio(audioBlob, actualType);
+    };
+
+    mediaRecorder.start();
+
+  } catch (err) {
+    console.error("Microphone error:", err);
+    state.isRecording = false;
+    elements.btnVoiceInput.classList.remove("recording");
+    elements.listeningIndicator.classList.add("hidden");
+    alert("マイクの使用が許可されていません。iPhoneの「設定 > Safari > マイク」をご確認ください。");
+  }
+}
+
+function stopVoiceRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+  } else {
+    state.isRecording = false;
+    elements.btnVoiceInput.classList.remove("recording");
+    elements.listeningIndicator.classList.add("hidden");
+    if (audioStream) {
+      audioStream.getTracks().forEach(t => t.stop());
+      audioStream = null;
+    }
+  }
+}
+
+async function processRecordedAudio(audioBlob, mimeType) {
+  elements.aiStatusIndicator.textContent = "✨ 音声を解析中...";
+  elements.aiStatusIndicator.classList.remove("hidden");
+
+  // Gemini API Key がある場合はマルチモーダルで高精度文字起こし＆回答
+  if (state.geminiApiKey && state.geminiEnabled) {
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        try {
+          const base64Data = reader.result.split(",")[1];
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+
+          const prompt = `ユーザー（きのぴぃ）からの音声録音メッセージです。
+以下の手順で処理してください：
+1. 音声からユーザーが発言した言葉を正確に文字起こししてください (userText)。無音や聞き取れない場合は「（聞き取れませんでした）」としてください。
+2. その発言に対し、きのぴぃの専属相棒（親友×執事）として優しく親身に1〜2文（60文字以内）で返答してください (replyText)。
+   - 呼び方：必ず「きのぴぃ」（さん付け不要）
+   - トーン：丁寧＋親友（「〜ですね」「〜ですよ」「〜しましょうか」）
+   - スタンス：進んでいる時はスマートに後押しし、疲れている・ダメな時こそ正論を言わず全力で寄り添い肯定してください。`;
+
+          const payload = {
+            contents: [{
+              role: "user",
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: mimeType.split(";")[0] || "audio/mp4",
+                    data: base64Data
+                  }
+                }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1000,
+              response_mime_type: "application/json",
+              response_schema: {
+                type: "OBJECT",
+                properties: {
+                  userText: { type: "STRING" },
+                  replyText: { type: "STRING" }
+                },
+                required: ["userText", "replyText"]
+              }
+            }
+          };
+
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          elements.aiStatusIndicator.classList.add("hidden");
+
+          if (data.usageMetadata && data.usageMetadata.totalTokenCount) {
+            recordTokenUsage(data.usageMetadata.totalTokenCount);
+          }
+
+          const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawJson) {
+            const parsed = JSON.parse(rawJson);
+            if (parsed.userText && parsed.userText !== "（聞き取れませんでした）") {
+              addMessageBubble("user", parsed.userText, null, true);
+            }
+            if (parsed.replyText) {
+              addMessageBubble("bot", parsed.replyText, null, true);
+              speak(parsed.replyText);
+            }
+          }
+        } catch (e) {
+          console.error("Audio Gemini parse error:", e);
+          elements.aiStatusIndicator.classList.add("hidden");
+          const fallback = "ごめんね、うまく聞き取れなかったみたい。もう一度話しかけてね！";
+          addMessageBubble("bot", fallback, null, true);
+          speak(fallback);
+        }
+      };
+    } catch (err) {
+      console.error("Audio process error:", err);
+      elements.aiStatusIndicator.classList.add("hidden");
+    }
+  } else {
+    elements.aiStatusIndicator.classList.add("hidden");
+    const msg = "音声入力を賢く使うには、設定（⚙️）からGemini API Keyを設定してね！";
+    addMessageBubble("bot", msg, null, true);
+    speak(msg);
+  }
+}
+
+// ==========================================
+// 音声合成 (VOICEVOX Web API & iOS Web Speech 最適化)
+// ==========================================
+async function speak(text) {
+  if (!state.voiceEnabled) return;
+
+  unlockAudioContext();
+
+  if (state.sharedAudio) {
+    state.sharedAudio.pause();
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+
+  // VOICEVOX が選択されている場合
+  if (state.voiceSpeaker !== "os") {
+    try {
+      await speakWithVoicevox(text, state.voiceSpeaker);
+      return;
+    } catch (err) {
+      console.warn("VOICEVOX failed, fallback to Web Speech:", err);
+    }
+  }
+
+  // OS標準音声フォールバック
+  speakWithWebSpeech(text);
+}
+
+async function speakWithVoicevox(text, speakerId) {
+  const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
+  const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
+
+  const res = await fetch(webApiUrl);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl || data.audioStatusUrl;
+
+  if (!audioUrl) throw new Error("No audio URL");
+
+  return new Promise((resolve, reject) => {
+    state.sharedAudio.src = audioUrl;
+    state.sharedAudio.playbackRate = state.voiceRate;
+
+    state.sharedAudio.onplay = () => {
+      state.isSpeaking = true;
+      elements.speakingIndicator.classList.remove("hidden");
+    };
+
+    state.sharedAudio.onended = () => {
+      state.isSpeaking = false;
+      elements.speakingIndicator.classList.add("hidden");
+      resolve();
+    };
+
+    state.sharedAudio.onerror = (e) => {
+      state.isSpeaking = false;
+      elements.speakingIndicator.classList.add("hidden");
+      reject(e);
+    };
+
+    state.sharedAudio.play().catch(reject);
+  });
+}
+
+function speakWithWebSpeech(text) {
+  if (!("speechSynthesis" in window)) return;
+
+  const cleanText = text.replace(/[*_#`]/g, "");
+  const uttr = new SpeechSynthesisUtterance(cleanText);
+  uttr.lang = "ja-JP";
+  uttr.pitch = state.voicePitch;
+  uttr.rate = state.voiceRate;
+
+  const voices = window.speechSynthesis.getVoices();
+  const jpVoice = voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
+  if (jpVoice) uttr.voice = jpVoice;
+
+  uttr.onstart = () => {
+    state.isSpeaking = true;
+    elements.speakingIndicator.classList.remove("hidden");
+  };
+
+  uttr.onend = () => {
+    state.isSpeaking = false;
+    elements.speakingIndicator.classList.add("hidden");
+  };
+
+  uttr.onerror = () => {
+    state.isSpeaking = false;
+    elements.speakingIndicator.classList.add("hidden");
+  };
+
+  window.speechSynthesis.speak(uttr);
 }
 
 // ==========================================
@@ -402,7 +699,7 @@ function escapeHtml(str) {
 }
 
 // ==========================================
-// 過去ログ読み込み & タイムライン構築 (Mac版完全同一)
+// 過去ログ読み込み & タイムライン構築
 // ==========================================
 function getTodayYmd() {
   const d = new Date();
@@ -418,7 +715,7 @@ function initChatTimeline() {
   elements.chatTimeline.innerHTML = "";
   state.oldestLoadedDate = new Date();
 
-  // 1. 最上部に過去ログ読み込みボタン (Mac版完全同一)
+  // 1. 最上部に過去ログ読み込みボタン
   loadPrevContainerEl = document.createElement("div");
   loadPrevContainerEl.className = "load-prev-container";
   btnLoadPrevChatEl = document.createElement("button");
@@ -547,7 +844,7 @@ function createMessageBubbleElement(role, text, timeStr) {
   metaEl.className = "bubble-meta";
   const senderEl = document.createElement("span");
   senderEl.className = "bubble-sender";
-  senderEl.textContent = role === "user" ? "きのぴぃ" : "カピバラ執事";
+  senderEl.textContent = role === "user" ? "きのぴぃ" : "コンパニオン君";
 
   const timeEl = document.createElement("span");
   timeEl.className = "bubble-time";
@@ -564,7 +861,7 @@ function createMessageBubbleElement(role, text, timeStr) {
   bubbleEl.appendChild(textEl);
   containerEl.appendChild(bubbleEl);
 
-  // アクション行 (右下に寄せる)
+  // アクション行 (右下寄せ)
   const actionsRowEl = document.createElement("div");
   actionsRowEl.className = "bubble-actions-row";
 
@@ -643,6 +940,7 @@ async function handleUserSend() {
   const text = elements.userInput.value.trim();
   if (!text) return;
 
+  unlockAudioContext();
   elements.userInput.value = "";
   addMessageBubble("user", text, null, true);
 
@@ -658,6 +956,7 @@ async function handleUserSend() {
 }
 
 async function callGeminiApi(userPrompt) {
+  elements.aiStatusIndicator.textContent = "✨ Gemini 思考中...";
   elements.aiStatusIndicator.classList.remove("hidden");
 
   const contents = state.conversationHistory.map((m) => ({
@@ -692,7 +991,7 @@ async function callGeminiApi(userPrompt) {
       console.error("Gemini Error:", data.error);
       const errReply = `ごめんね、Geminiの通信でエラーが出ちゃった（${data.error.message || "エラー"}）。内蔵モードで答えるね。`;
       addMessageBubble("bot", errReply, null, true);
-      speakText(errReply);
+      speak(errReply);
       return;
     }
 
@@ -704,14 +1003,14 @@ async function callGeminiApi(userPrompt) {
     }
 
     addMessageBubble("bot", replyText, null, true);
-    speakText(replyText);
+    speak(replyText);
 
   } catch (err) {
     elements.aiStatusIndicator.classList.add("hidden");
     console.error("Fetch Gemini error:", err);
     const fallbackReply = "通信環境が不安定みたい。でもぼくはいつでもきのぴぃの味方だよ！";
     addMessageBubble("bot", fallbackReply, null, true);
-    speakText(fallbackReply);
+    speak(fallbackReply);
   }
 }
 
@@ -730,7 +1029,7 @@ function handleBuiltinResponse(text) {
   }
 
   addMessageBubble("bot", reply, null, true);
-  speakText(reply);
+  speak(reply);
 }
 
 function handleSpecialCommands(text) {
@@ -740,7 +1039,7 @@ function handleSpecialCommands(text) {
       addMemo(memoBody);
       const reply = `メモ「${memoBody}」を保管したよ！📋ボタンからいつでも確認・管理できるよ。`;
       addMessageBubble("bot", reply, null, true);
-      speakText(reply);
+      speak(reply);
       return true;
     }
   }
@@ -751,7 +1050,7 @@ function handleSpecialCommands(text) {
     startTimer(minutes);
     const reply = `${minutes}分タイマーをセットしたよ！集中して、終わったらチャイムで教えるね。`;
     addMessageBubble("bot", reply, null, true);
-    speakText(reply);
+    speak(reply);
     return true;
   }
 
@@ -759,6 +1058,7 @@ function handleSpecialCommands(text) {
 }
 
 function handleQuickAction(action) {
+  unlockAudioContext();
   if (action === "memo") {
     elements.userInput.value = "メモ: ";
     elements.userInput.focus();
@@ -796,7 +1096,7 @@ function startTimer(minutes) {
       playChime();
       const msg = `きのぴぃ、${minutes}分経ったよ！お疲れさま！一息つこうね。`;
       addMessageBubble("bot", msg, null, true);
-      speakText(msg);
+      speak(msg);
     }
   }, 1000);
 }
@@ -826,134 +1126,6 @@ function playChime() {
   } catch (e) {
     console.warn("Chime error:", e);
   }
-}
-
-// ==========================================
-// 音声合成 (VOICEVOX Web API & iOS Web Speech 最適化)
-// ==========================================
-async function speakText(text) {
-  if (!state.voiceEnabled) return;
-
-  if (state.currentAudio) {
-    state.currentAudio.pause();
-    state.currentAudio = null;
-  }
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-
-  elements.speakingIndicator.classList.remove("hidden");
-
-  if (state.voiceSpeaker === "os") {
-    playWebSpeech(text);
-    return;
-  }
-
-  const speakerId = state.voiceSpeaker;
-  const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
-  const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const audioUrl = data.mp3DownloadUrl || data.audioStatusUrl;
-
-    if (audioUrl) {
-      state.currentAudio = new Audio(audioUrl);
-      state.currentAudio.playbackRate = state.voiceRate;
-      state.currentAudio.onended = () => {
-        elements.speakingIndicator.classList.add("hidden");
-        state.currentAudio = null;
-      };
-      state.currentAudio.onerror = () => {
-        elements.speakingIndicator.classList.add("hidden");
-        playWebSpeech(text);
-      };
-      await state.currentAudio.play();
-    } else {
-      throw new Error("No audio url returned");
-    }
-  } catch (err) {
-    console.warn("VOICEVOX failed, fallback to Web Speech:", err);
-    playWebSpeech(text);
-  }
-}
-
-function playWebSpeech(text) {
-  if ("speechSynthesis" in window) {
-    const cleanText = text.replace(/[*_#`]/g, "");
-    const uttr = new SpeechSynthesisUtterance(cleanText);
-    uttr.lang = "ja-JP";
-    uttr.pitch = state.voicePitch;
-    uttr.rate = state.voiceRate;
-    uttr.onend = () => elements.speakingIndicator.classList.add("hidden");
-    uttr.onerror = () => elements.speakingIndicator.classList.add("hidden");
-    window.speechSynthesis.speak(uttr);
-  } else {
-    elements.speakingIndicator.classList.add("hidden");
-  }
-}
-
-// ==========================================
-// 音声認識 (iOS Safari / PWA 最適化)
-// ==========================================
-function initVoiceRecognition() {
-  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRec) {
-    elements.btnVoiceInput.title = "このブラウザは音声認識に対応していません";
-    return;
-  }
-
-  state.recognition = new SpeechRec();
-  state.recognition.lang = "ja-JP";
-  state.recognition.interimResults = false;
-  state.recognition.continuous = false;
-
-  state.recognition.onstart = () => {
-    state.isRecording = true;
-    elements.btnVoiceInput.classList.add("recording");
-    elements.listeningIndicator.classList.remove("hidden");
-  };
-
-  state.recognition.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    elements.userInput.value = transcript;
-    handleUserSend();
-  };
-
-  state.recognition.onerror = (e) => {
-    console.warn("Speech recognition error:", e);
-    stopVoiceRecognition();
-  };
-
-  state.recognition.onend = () => {
-    stopVoiceRecognition();
-  };
-}
-
-function toggleVoiceRecognition() {
-  unlockAudioContext();
-  if (!state.recognition) {
-    alert("お使いのブラウザは音声入力に対応していません。Safariの設定でマイク権限を許可してください。");
-    return;
-  }
-  if (state.isRecording) {
-    state.recognition.stop();
-  } else {
-    try {
-      state.recognition.start();
-    } catch (e) {
-      console.warn("Voice start error:", e);
-      stopVoiceRecognition();
-    }
-  }
-}
-
-function stopVoiceRecognition() {
-  state.isRecording = false;
-  elements.btnVoiceInput.classList.remove("recording");
-  elements.listeningIndicator.classList.add("hidden");
 }
 
 // ==========================================
@@ -1201,9 +1373,9 @@ async function fetchKumapyTasks() {
 }
 
 // ==========================================
-// 設定保存
+// 設定保存 (自動保存 ＆ 手動保存)
 // ==========================================
-function saveSettings() {
+function saveSettings(showBubble = true) {
   state.geminiEnabled = elements.geminiApiToggle.checked;
   state.geminiApiKey = elements.geminiApiKey.value.trim();
   state.kumapyUrl = elements.kumapyUrlInput.value.trim();
@@ -1221,7 +1393,9 @@ function saveSettings() {
   localStorage.setItem("voice_rate", state.voiceRate);
 
   updateBadgeState();
-  elements.settingsPanel.classList.add("hidden");
-  addMessageBubble("bot", "設定を保存したよ！ありがとう！", null, true);
+  if (showBubble) {
+    elements.settingsPanel.classList.add("hidden");
+    addMessageBubble("bot", "設定を保存したよ！ありがとう！", null, true);
+  }
   fetchKumapyTasks();
 }
