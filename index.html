@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Kinopy Companion</title>
+  
+  <!-- PWA / iOS Settings -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Companion">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="icon" href="assets/icon.png">
+  <meta name="theme-color" content="#6366f1">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- ヘッダーバー -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="avatar-wrapper" id="header-avatar-btn" title="相棒アバター">
+          <img src="assets/icon.png" alt="Companion" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.jpg'">
+        </div>
+        <div class="header-titles">
+          <div class="header-main-title">
+            <span class="title-text">Companion</span>
+            <span id="ai-mode-badge" class="ai-mode-badge" title="タップでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+          </div>
+          <span id="character-subtext" class="character-subtext">専属バディ（親友×執事）</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-sound-toggle" class="icon-btn" title="音声読み上げオン/オフ">🔊</button>
+        <button id="btn-memo-manage" class="icon-btn" title="メモ管理">📋</button>
+        <button id="btn-settings-toggle" class="icon-btn" title="設定">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Kumapy 進行中タスク＆直近予定ステータスバー -->
+    <div class="kumapy-status-bar" id="kumapy-status-bar" title="Kumapyタスク状況">
+      <div class="kumapy-status-main">
+        <span class="kumapy-icon" id="kumapy-icon">🎯</span>
+        <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
+      </div>
+      <button id="btn-kumapy-refresh" class="kumapy-refresh-btn" title="タスク更新">↻</button>
+    </div>
+
+    <!-- チャットタイムライン -->
+    <main class="chat-thread-container" id="chat-container">
+      <div class="chat-timeline" id="chat-timeline">
+        <!-- メッセージが動的に挿入されます -->
+      </div>
+      <div class="speech-status">
+        <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
+        <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
+        <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
+      </div>
+    </main>
+
+    <!-- フッター・入力エリア -->
+    <footer class="app-footer">
+      <!-- クイックアクションバー -->
+      <div class="quick-actions-bar">
+        <button class="quick-chip-btn" data-action="memo" title="メモ入力">📝 メモ</button>
+        <button class="quick-chip-btn" data-action="coach" title="モヤモヤ相談">💡 モヤモヤ</button>
+        <button class="quick-chip-btn" data-action="snack" title="おやつ">🍪 おなか減った</button>
+        <button class="quick-chip-btn" data-action="tired" title="もう無理・休憩">🛌 もう無理</button>
+      </div>
+
+      <!-- チャット入力欄 -->
+      <div class="chat-input-area">
+        <button id="btn-voice-input" class="mic-btn" title="音声入力 (タップで録音開始/停止)">🎤</button>
+        <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
+        <button id="btn-send" class="send-btn" title="送信">送信</button>
+      </div>
+    </footer>
+
+    <!-- 設定モーダル -->
+    <div id="settings-panel" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚙️ 設定</h3>
+          <button id="btn-settings-close" class="modal-close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group form-row-toggle">
+            <label for="gemini-api-toggle">Gemini API 連動 <small>(OFF時は内蔵モード)</small></label>
+            <label class="switch">
+              <input type="checkbox" id="gemini-api-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="gemini-api-key">Gemini API Key</label>
+            <input type="password" id="gemini-api-key" placeholder="AQ.Ab8... または AIzaSy...">
+            <div class="token-stats-card" id="token-stats-card">
+              <div class="token-stats-row">
+                <span class="token-stats-label">📊 本日の消費:</span>
+                <span class="token-stats-val" id="today-tokens-val">0 tokens</span>
+              </div>
+              <div class="token-stats-row">
+                <span class="token-stats-label">📈 累計消費:</span>
+                <span class="token-stats-val" id="total-tokens-val">0 tokens</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="kumapy-url">Kumapy スプレッドシート URL / ID</label>
+            <input type="text" id="kumapy-url" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+          </div>
+          <div class="form-group form-row-toggle">
+            <label for="voice-toggle">音声読み上げ</label>
+            <label class="switch">
+              <input type="checkbox" id="voice-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="form-group">
+            <div class="form-label-row">
+              <label for="voice-speaker">キャラクター声（VOICEVOX）</label>
+              <button id="btn-voice-preview" class="preview-voice-btn" type="button">🔊 試聴</button>
+            </div>
+            <select id="voice-speaker" class="form-select">
+              <optgroup label="👨 男性・友達／相棒ボイス">
+                <option value="11" selected>玄野武宏・通常（落ち着いた親友・執事声）</option>
+                <option value="39">玄野武宏・喜び（明るい親友声）</option>
+                <option value="12">白上虎太郎（元気な親友・少年声）</option>
+                <option value="51">雀松朱司（気さくな男友達・青年声）</option>
+                <option value="64">栗田まろん（爽やか・優しい友達声）</option>
+                <option value="21">剣崎雌雄（知的で落ち着いた相棒声）</option>
+                <option value="13">青山龍星（低音・頼れるイケボ）</option>
+                <option value="52">麒ヶ島宗麟（渋くて頼もしい兄貴声）</option>
+              </optgroup>
+              <optgroup label="👧 女性・マスコットボイス">
+                <option value="8">春日部つむぎ（明るく元気な親友声）</option>
+                <option value="2">四国めたん（丁寧・お嬢様執事声）</option>
+                <option value="3">ずんだもん（ポップ・マスコット声）</option>
+                <option value="10">雨晴はう（優しく癒やし系ボイス）</option>
+              </optgroup>
+              <optgroup label="📱 その他">
+                <option value="os">端末標準音声（iOS標準）</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label for="voice-pitch">高さ: <span id="pitch-val">1.0</span></label>
+              <input type="range" id="voice-pitch" min="0.5" max="1.5" step="0.1" value="1.0">
+            </div>
+            <div class="form-group">
+              <label for="voice-rate">速度: <span id="rate-val">1.0</span></label>
+              <input type="range" id="voice-rate" min="0.5" max="1.5" step="0.1" value="1.0">
+            </div>
+          </div>
+          <button id="btn-save-settings" class="primary-btn">設定を保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- メモ管理モーダル -->
+    <div id="memo-panel" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>📝 メモ管理</h3>
+          <button id="btn-memo-close" class="modal-close-btn">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="memo-section-header">
+            <span>📌 保管中のメモ (<span id="memo-active-count">0</span>)</span>
+          </div>
+          <div id="memo-active-list" class="memo-item-list"></div>
+
+          <div class="memo-section-header memo-archive-header" id="btn-toggle-archive">
+            <span>📦 アーカイブ済み (<span id="memo-archived-count">0</span>)</span>
+            <span id="archive-arrow" style="font-size:10px;">▶</span>
+          </div>
+          <div id="memo-archived-list" class="memo-item-list hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Service Worker 登録
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").then((reg) => {
+          console.log("PWA ServiceWorker registered:", reg.scope);
+        }).catch((err) => {
+          console.log("PWA ServiceWorker registration failed:", err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
