@@ -1,5 +1,5 @@
 // Service Worker for Kinopy Companion PWA
-const CACHE_NAME = "companion-pwa-v2";
+const CACHE_NAME = "companion-pwa-v3";
 const STATIC_ASSETS = [
   "./",
   "./index.html",

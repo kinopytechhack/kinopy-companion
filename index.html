@@ -8,11 +8,11 @@
   <!-- PWA / iOS Settings -->
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Companion">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <link rel="icon" href="assets/icon.png">
-  <meta name="theme-color" content="#1e1e2e">
+  <meta name="theme-color" content="#f8fafc">
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -33,8 +33,6 @@
       </div>
       <div class="header-actions">
         <button id="btn-chat-search-toggle" class="icon-btn" title="チャット内検索">🔍</button>
-        <button id="btn-memo-manage" class="icon-btn" title="メモ管理">📋</button>
-        <button id="btn-sound-toggle" class="icon-btn" title="音声読み上げオン/オフ">🔊</button>
         <button id="btn-settings-toggle" class="icon-btn" title="設定">⚙️</button>
       </div>
     </header>
@@ -65,24 +63,30 @@
       <div class="speech-status">
         <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
         <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
-        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声聞き取り中...</span>
+        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声認識中...</span>
         <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
       </div>
     </main>
 
     <!-- フッター・入力エリア -->
     <footer class="app-footer">
-      <!-- クイックアクションバー（アイコンのみ） -->
+      <!-- アクションバー（左: 📝💡🍪🛌 / 右: 🎤📋🔊） -->
       <div class="quick-actions-bar">
-        <button class="quick-chip-btn" data-action="memo" title="📝 メモ入力">📝</button>
-        <button class="quick-chip-btn" data-action="coach" title="💡 モヤモヤ相談">💡</button>
-        <button class="quick-chip-btn" data-action="snack" title="🍪 おやつ">🍪</button>
-        <button class="quick-chip-btn" data-action="tired" title="🛌 もう無理">🛌</button>
+        <div class="quick-actions-left">
+          <button class="quick-chip-btn" data-action="memo" title="📝 メモ入力">📝</button>
+          <button class="quick-chip-btn" data-action="coach" title="💡 モヤモヤ相談">💡</button>
+          <button class="quick-chip-btn" data-action="snack" title="🍪 おやつ">🍪</button>
+          <button class="quick-chip-btn" data-action="tired" title="🛌 もう無理">🛌</button>
+        </div>
+        <div class="quick-actions-right">
+          <button id="btn-voice-input" class="quick-chip-btn action-mic-btn" title="🎤 音声入力 (タップで録音開始/停止)">🎤</button>
+          <button id="btn-memo-manage" class="quick-chip-btn" title="📋 メモ管理を開く">📋</button>
+          <button id="btn-sound-toggle" class="quick-chip-btn" title="🔊 音声読み上げオン/オフ">🔊</button>
+        </div>
       </div>
 
       <!-- チャット入力欄 -->
       <div class="chat-input-area">
-        <button id="btn-voice-input" class="mic-btn" title="音声入力 (タップで録音開始/停止)">🎤</button>
         <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
         <button id="btn-send" class="send-btn" title="送信">送信</button>
       </div>
@@ -195,7 +199,6 @@
 
   <script src="app.js"></script>
   <script>
-    // Service Worker 登録
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js").then((reg) => {
