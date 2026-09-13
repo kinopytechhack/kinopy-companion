@@ -1,5 +1,5 @@
 // Service Worker for Kinopy Companion PWA
-const CACHE_NAME = "companion-pwa-v1";
+const CACHE_NAME = "companion-pwa-v2";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -38,14 +38,25 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  // APIリクエスト（GeminiやGoogle Sheets）はネットワーク優先
-  if (e.request.url.includes("googleapis.com") || e.request.url.includes("google.com") || e.request.url.includes("tts.quest")) {
+  // APIリクエスト（Gemini, Google Sheets, VOICEVOX Web API）はキャッシュせず直接通信
+  if (
+    e.request.url.includes("googleapis.com") ||
+    e.request.url.includes("google.com") ||
+    e.request.url.includes("tts.quest")
+  ) {
     return;
   }
 
+  // 静的ファイルはネットワーク優先で最新を取得、オフライン時はキャッシュ
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      return cached || fetch(e.request).catch(() => cached);
-    })
+    fetch(e.request)
+      .then((networkRes) => {
+        if (networkRes.ok && e.request.method === "GET") {
+          const resClone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
+        }
+        return networkRes;
+      })
+      .catch(() => caches.match(e.request))
   );
 });

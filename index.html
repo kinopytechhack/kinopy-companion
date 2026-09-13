@@ -8,11 +8,11 @@
   <!-- PWA / iOS Settings -->
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Companion">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <link rel="icon" href="assets/icon.png">
-  <meta name="theme-color" content="#6366f1">
+  <meta name="theme-color" content="#1e1e2e">
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -29,18 +29,18 @@
             <span class="title-text">Companion</span>
             <span id="ai-mode-badge" class="ai-mode-badge" title="タップでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
           </div>
-          <span id="character-subtext" class="character-subtext">専属バディ（親友×執事）</span>
         </div>
       </div>
       <div class="header-actions">
-        <button id="btn-sound-toggle" class="icon-btn" title="音声読み上げオン/オフ">🔊</button>
+        <button id="btn-chat-search-toggle" class="icon-btn" title="チャット内検索">🔍</button>
         <button id="btn-memo-manage" class="icon-btn" title="メモ管理">📋</button>
+        <button id="btn-sound-toggle" class="icon-btn" title="音声読み上げオン/オフ">🔊</button>
         <button id="btn-settings-toggle" class="icon-btn" title="設定">⚙️</button>
       </div>
     </header>
 
     <!-- Kumapy 進行中タスク＆直近予定ステータスバー -->
-    <div class="kumapy-status-bar" id="kumapy-status-bar" title="Kumapyタスク状況">
+    <div class="kumapy-status-bar" id="kumapy-status-bar" title="タップでKumapyを開く">
       <div class="kumapy-status-main">
         <span class="kumapy-icon" id="kumapy-icon">🎯</span>
         <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
@@ -48,26 +48,36 @@
       <button id="btn-kumapy-refresh" class="kumapy-refresh-btn" title="タスク更新">↻</button>
     </div>
 
+    <!-- チャット検索バー（トグル表示対応） -->
+    <div id="chat-search-bar" class="chat-search-bar hidden">
+      <input type="text" id="chat-search-input" placeholder="チャットを検索..." />
+      <span id="chat-search-count" class="chat-search-count">0/0</span>
+      <button id="btn-search-prev" class="mini-search-btn" title="前の一致">▲</button>
+      <button id="btn-search-next" class="mini-search-btn" title="次の一致">▼</button>
+      <button id="btn-search-close" class="mini-search-btn" title="閉じる">✕</button>
+    </div>
+
     <!-- チャットタイムライン -->
     <main class="chat-thread-container" id="chat-container">
       <div class="chat-timeline" id="chat-timeline">
-        <!-- メッセージが動的に挿入されます -->
+        <!-- 過去ログ読み込みボタン & メッセージが動的に挿入されます -->
       </div>
       <div class="speech-status">
         <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
         <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
+        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声聞き取り中...</span>
         <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
       </div>
     </main>
 
     <!-- フッター・入力エリア -->
     <footer class="app-footer">
-      <!-- クイックアクションバー -->
+      <!-- クイックアクションバー（アイコンのみ） -->
       <div class="quick-actions-bar">
-        <button class="quick-chip-btn" data-action="memo" title="メモ入力">📝 メモ</button>
-        <button class="quick-chip-btn" data-action="coach" title="モヤモヤ相談">💡 モヤモヤ</button>
-        <button class="quick-chip-btn" data-action="snack" title="おやつ">🍪 おなか減った</button>
-        <button class="quick-chip-btn" data-action="tired" title="もう無理・休憩">🛌 もう無理</button>
+        <button class="quick-chip-btn" data-action="memo" title="📝 メモ入力">📝</button>
+        <button class="quick-chip-btn" data-action="coach" title="💡 モヤモヤ相談">💡</button>
+        <button class="quick-chip-btn" data-action="snack" title="🍪 おやつ">🍪</button>
+        <button class="quick-chip-btn" data-action="tired" title="🛌 もう無理">🛌</button>
       </div>
 
       <!-- チャット入力欄 -->

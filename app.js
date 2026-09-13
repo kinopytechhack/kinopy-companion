@@ -1,6 +1,6 @@
-// ==========================================
-// Kinopy Companion PWA - App Main Logic
-// ==========================================
+// ==========================================================================
+// Kinopy Companion PWA - Main Logic
+// ==========================================================================
 
 const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ（親友 × 執事）です。
 頭にちょこんとサウナハットを被った、のんびり温和で賢いカピバラの執事キャラクターです。
@@ -14,25 +14,39 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-// 状態管理
+// 状態管理 (Mac版キー名と完全互換)
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
-  geminiEnabled: localStorage.getItem("gemini_enabled") !== "false", // デフォルトON
+  geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
   kumapyUrl: localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU",
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
-  chatHistory: JSON.parse(localStorage.getItem("companion_chat_history") || "[]"),
-  todayTokens: parseInt(localStorage.getItem("companion_today_tokens") || "0", 10),
-  totalTokens: parseInt(localStorage.getItem("companion_total_tokens") || "0", 10),
-  lastTokenDate: localStorage.getItem("companion_last_token_date") || new Date().toDateString(),
+  
+  // トークン消費集計 (Mac版と完全同一キー)
+  todayTokens: parseInt(localStorage.getItem("gemini_today_tokens") || "0", 10),
+  totalTokens: parseInt(localStorage.getItem("gemini_total_tokens") || "0", 10),
+  tokenUsageDate: localStorage.getItem("gemini_token_date") || new Date().toISOString().slice(0, 10),
+  
+  // チャット・ログ管理
+  conversationHistory: [], // Geminiコンテキスト用
+  oldestLoadedDate: new Date(),
+  allLogDates: JSON.parse(localStorage.getItem("companion_chat_dates") || "[]"),
+
+  // タイマー・音声
   activeTimer: null,
   timerSecondsRemaining: 0,
   isRecording: false,
-  recognition: null
+  recognition: null,
+  audioUnlocked: false,
+  currentAudio: null
 };
+
+// 検索状態
+let currentSearchResults = [];
+let currentSearchIndex = -1;
 
 // DOM要素
 const elements = {
@@ -51,7 +65,9 @@ const elements = {
   aiModeBadge: document.getElementById("ai-mode-badge"),
   aiStatusIndicator: document.getElementById("ai-status-indicator"),
   speakingIndicator: document.getElementById("speaking-indicator"),
+  listeningIndicator: document.getElementById("listening-indicator"),
   timerBadge: document.getElementById("timer-badge"),
+  kumapyStatusBar: document.getElementById("kumapy-status-bar"),
   kumapyText: document.getElementById("kumapy-text"),
   kumapyIcon: document.getElementById("kumapy-icon"),
   btnKumapyRefresh: document.getElementById("btn-kumapy-refresh"),
@@ -73,40 +89,98 @@ const elements = {
   memoArchivedList: document.getElementById("memo-archived-list"),
   btnToggleArchive: document.getElementById("btn-toggle-archive"),
   archiveArrow: document.getElementById("archive-arrow"),
-  headerAvatarBtn: document.getElementById("header-avatar-btn")
+  headerAvatarBtn: document.getElementById("header-avatar-btn"),
+  
+  // チャット検索
+  btnChatSearchToggle: document.getElementById("btn-chat-search-toggle"),
+  chatSearchBar: document.getElementById("chat-search-bar"),
+  chatSearchInput: document.getElementById("chat-search-input"),
+  chatSearchCount: document.getElementById("chat-search-count"),
+  btnSearchPrev: document.getElementById("btn-search-prev"),
+  btnSearchNext: document.getElementById("btn-search-next"),
+  btnSearchClose: document.getElementById("btn-search-close")
 };
+
+let btnLoadPrevChatEl = null;
+let loadPrevContainerEl = null;
 
 // ==========================================
 // 初期化
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-  initDateTokenReset();
+  initTokenUsage();
   loadSettingsToUI();
   updateBadgeState();
-  renderChatHistory();
+  initChatTimeline();
   renderMemos();
   setupEventListeners();
   initVoiceRecognition();
-  fetchKumapySchedule();
+  fetchKumapyTasks();
+  setInterval(fetchKumapyTasks, 30 * 1000); // 30秒ポーリング
 
-  // 初回起動メッセージ
-  if (state.chatHistory.length === 0) {
-    addMessage("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！");
-  }
+  // iOS オーディオアンロック (初回タップ時)
+  document.addEventListener("touchstart", unlockAudioContext, { once: true });
+  document.addEventListener("click", unlockAudioContext, { once: true });
 });
 
-// 日付が変わったら当日トークンをリセット
-function initDateTokenReset() {
-  const today = new Date().toDateString();
-  if (state.lastTokenDate !== today) {
-    state.todayTokens = 0;
-    state.lastTokenDate = today;
-    localStorage.setItem("companion_today_tokens", "0");
-    localStorage.setItem("companion_last_token_date", today);
+// オーディオアンロック (iOS Safari / PWA 対策)
+function unlockAudioContext() {
+  if (state.audioUnlocked) return;
+  state.audioUnlocked = true;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+    // 空の音声再生
+    if ("speechSynthesis" in window) {
+      const silent = new SpeechSynthesisUtterance("");
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+    }
+  } catch (e) {
+    console.warn("Audio unlock failed:", e);
   }
 }
 
-// UIに設定値を反映
+// ==========================================
+// トークン消費集計 (Mac版と完全同一)
+// ==========================================
+function initTokenUsage() {
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  if (state.tokenUsageDate !== todayYmd) {
+    state.tokenUsageDate = todayYmd;
+    state.todayTokens = 0;
+    localStorage.setItem("gemini_token_date", todayYmd);
+    localStorage.setItem("gemini_today_tokens", "0");
+  }
+  updateTokenDisplay();
+}
+
+function recordTokenUsage(tokens) {
+  if (!tokens || tokens <= 0) return;
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  if (state.tokenUsageDate !== todayYmd) {
+    state.tokenUsageDate = todayYmd;
+    state.todayTokens = 0;
+    localStorage.setItem("gemini_token_date", todayYmd);
+  }
+  state.todayTokens += tokens;
+  state.totalTokens += tokens;
+  localStorage.setItem("gemini_today_tokens", state.todayTokens.toString());
+  localStorage.setItem("gemini_total_tokens", state.totalTokens.toString());
+  updateTokenDisplay();
+}
+
+function updateTokenDisplay() {
+  if (elements.todayTokensVal) {
+    elements.todayTokensVal.textContent = `${state.todayTokens.toLocaleString()} tokens`;
+  }
+  if (elements.totalTokensVal) {
+    elements.totalTokensVal.textContent = `${state.totalTokens.toLocaleString()} tokens`;
+  }
+}
+
 function loadSettingsToUI() {
   elements.geminiApiToggle.checked = state.geminiEnabled;
   elements.geminiApiKey.value = state.geminiApiKey;
@@ -118,11 +192,6 @@ function loadSettingsToUI() {
   elements.pitchVal.textContent = state.voicePitch.toFixed(1);
   elements.rateVal.textContent = state.voiceRate.toFixed(1);
   updateTokenDisplay();
-}
-
-function updateTokenDisplay() {
-  elements.todayTokensVal.textContent = `${state.todayTokens.toLocaleString()} tokens`;
-  elements.totalTokensVal.textContent = `${state.totalTokens.toLocaleString()} tokens`;
 }
 
 function updateBadgeState() {
@@ -149,7 +218,7 @@ function setupEventListeners() {
     }
   });
 
-  // 音声入力ボタン
+  // 音声入力 (iOS Safariで即座に開始できるようtouch/click両対応)
   elements.btnVoiceInput.addEventListener("click", toggleVoiceRecognition);
 
   // 設定パネル
@@ -167,7 +236,7 @@ function setupEventListeners() {
     localStorage.setItem("gemini_enabled", state.geminiEnabled);
     elements.geminiApiToggle.checked = state.geminiEnabled;
     updateBadgeState();
-    addMessage("bot", state.geminiEnabled ? "Gemini AIモードをONにしたよ！賢くお答えするね。" : "内蔵モードに切り替えたよ！");
+    addMessageBubble("bot", state.geminiEnabled ? "Gemini AIモードをONにしたよ！賢くお答えするね。" : "内蔵モードに切り替えたよ！", null, true);
   });
 
   // サウンド切り替え
@@ -192,9 +261,13 @@ function setupEventListeners() {
     elements.archiveArrow.textContent = isHidden ? "▶" : "▼";
   });
 
-  // Kumapy更新
-  elements.btnKumapyRefresh.addEventListener("click", () => {
-    fetchKumapySchedule();
+  // Kumapy更新 & バークリック
+  elements.btnKumapyRefresh.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fetchKumapyTasks();
+  });
+  elements.kumapyStatusBar.addEventListener("click", () => {
+    fetchKumapyTasks();
   });
 
   // スライダー値表示更新
@@ -210,7 +283,7 @@ function setupEventListeners() {
     speakText("きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。");
   });
 
-  // クイックアクションボタン
+  // クイックアクションボタン（アイコンのみ）
   document.querySelectorAll(".quick-chip-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.dataset.action;
@@ -218,7 +291,7 @@ function setupEventListeners() {
     });
   });
 
-  // ヘッダーアバタータップでランダム一言
+  // ヘッダーアバタータップ
   elements.headerAvatarBtn.addEventListener("click", () => {
     const greetings = [
       "サウナハット被っていつでもスタンバイOKだよ！",
@@ -227,9 +300,365 @@ function setupEventListeners() {
       "ひと休みするならぼくに言ってね。タイマーも測れるよ！"
     ];
     const picked = greetings[Math.floor(Math.random() * greetings.length)];
-    addMessage("bot", picked);
+    addMessageBubble("bot", picked, null, true);
     speakText(picked);
   });
+
+  // チャット検索
+  initChatSearchEvents();
+}
+
+// ==========================================
+// チャット検索機能 (Mac版完全同一)
+// ==========================================
+function initChatSearchEvents() {
+  elements.btnChatSearchToggle.addEventListener("click", () => {
+    const isHidden = elements.chatSearchBar.classList.toggle("hidden");
+    if (!isHidden) {
+      elements.chatSearchInput.focus();
+      if (elements.chatSearchInput.value.trim()) {
+        performChatSearch(elements.chatSearchInput.value.trim());
+      }
+    } else {
+      clearChatSearch();
+    }
+  });
+
+  elements.btnSearchClose.addEventListener("click", () => {
+    elements.chatSearchBar.classList.add("hidden");
+    clearChatSearch();
+  });
+
+  elements.chatSearchInput.addEventListener("input", (e) => {
+    performChatSearch(e.target.value.trim());
+  });
+
+  elements.chatSearchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        navigateSearch(-1);
+      } else {
+        navigateSearch(1);
+      }
+    }
+  });
+
+  elements.btnSearchPrev.addEventListener("click", () => navigateSearch(-1));
+  elements.btnSearchNext.addEventListener("click", () => navigateSearch(1));
+}
+
+function clearChatSearch() {
+  currentSearchResults = [];
+  currentSearchIndex = -1;
+  if (elements.chatSearchCount) elements.chatSearchCount.textContent = "0/0";
+  const bubbles = elements.chatTimeline.querySelectorAll(".bubble-text");
+  bubbles.forEach((el) => {
+    el.innerHTML = escapeHtml(el.textContent);
+  });
+}
+
+function performChatSearch(query) {
+  clearChatSearch();
+  if (!query || !elements.chatTimeline) return;
+
+  const bubbles = elements.chatTimeline.querySelectorAll(".bubble-text");
+  const queryLower = query.toLowerCase();
+
+  bubbles.forEach((el) => {
+    const rawText = el.textContent;
+    if (rawText.toLowerCase().includes(queryLower)) {
+      const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
+      el.innerHTML = escapeHtml(rawText).replace(regex, '<mark class="search-highlight">$1</mark>');
+    }
+  });
+
+  currentSearchResults = Array.from(elements.chatTimeline.querySelectorAll(".search-highlight"));
+  if (currentSearchResults.length > 0) {
+    currentSearchIndex = 0;
+    updateSearchUI();
+    scrollToSearchResult(0);
+  } else {
+    if (elements.chatSearchCount) elements.chatSearchCount.textContent = "0/0";
+  }
+}
+
+function navigateSearch(direction) {
+  if (currentSearchResults.length === 0) return;
+  currentSearchIndex = (currentSearchIndex + direction + currentSearchResults.length) % currentSearchResults.length;
+  updateSearchUI();
+  scrollToSearchResult(currentSearchIndex);
+}
+
+function updateSearchUI() {
+  if (elements.chatSearchCount) {
+    elements.chatSearchCount.textContent = `${currentSearchIndex + 1}/${currentSearchResults.length}`;
+  }
+  currentSearchResults.forEach((mark, idx) => {
+    if (idx === currentSearchIndex) {
+      mark.classList.add("active-match");
+    } else {
+      mark.classList.remove("active-match");
+    }
+  });
+}
+
+function scrollToSearchResult(index) {
+  const mark = currentSearchResults[index];
+  if (mark) {
+    mark.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ==========================================
+// 過去ログ読み込み & タイムライン構築
+// ==========================================
+function getTodayYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatDateLabel(dateObj) {
+  const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+  return `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日 (${weekDays[dateObj.getDay()]})`;
+}
+
+function initChatTimeline() {
+  elements.chatTimeline.innerHTML = "";
+  state.oldestLoadedDate = new Date();
+
+  // 1. 最上部に過去ログ読み込みボタン
+  loadPrevContainerEl = document.createElement("div");
+  loadPrevContainerEl.className = "load-prev-container";
+  btnLoadPrevChatEl = document.createElement("button");
+  btnLoadPrevChatEl.className = "load-prev-btn";
+  btnLoadPrevChatEl.textContent = "📜 過去のチャットを読み込む";
+  btnLoadPrevChatEl.addEventListener("click", loadPreviousLog);
+  loadPrevContainerEl.appendChild(btnLoadPrevChatEl);
+  elements.chatTimeline.appendChild(loadPrevContainerEl);
+
+  // 2. 本日の日付セパレーター
+  elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
+
+  // 3. 本日のチャット読み込み
+  const todayYmd = getTodayYmd();
+  registerLogDate(todayYmd);
+
+  const todayLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+  if (todayLogs.length > 0) {
+    todayLogs.forEach((msg) => {
+      elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+      state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+    });
+  } else {
+    // 初回挨拶
+    addMessageBubble("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！", null, true);
+  }
+
+  updateLoadPrevButton();
+  scrollToBottom();
+}
+
+function registerLogDate(ymd) {
+  if (!state.allLogDates.includes(ymd)) {
+    state.allLogDates.push(ymd);
+    state.allLogDates.sort();
+    localStorage.setItem("companion_chat_dates", JSON.stringify(state.allLogDates));
+  }
+}
+
+function findPreviousLogDate(currentDate) {
+  const curYmd = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+  const olderDates = state.allLogDates.filter(d => d < curYmd).sort().reverse();
+  if (olderDates.length === 0) return null;
+  const targetYmd = olderDates[0];
+  const [y, m, d] = targetYmd.split("-").map(n => parseInt(n, 10));
+  const dateObj = new Date(y, m - 1, d);
+  return { dateObj, ymd: targetYmd, dateStr: formatDateLabel(dateObj) };
+}
+
+function updateLoadPrevButton() {
+  if (!btnLoadPrevChatEl) return;
+  const prevInfo = findPreviousLogDate(state.oldestLoadedDate);
+  if (prevInfo) {
+    btnLoadPrevChatEl.disabled = false;
+    btnLoadPrevChatEl.textContent = `📜 過去のチャットを読み込む (${prevInfo.dateStr})`;
+    loadPrevContainerEl.classList.remove("hidden");
+  } else {
+    btnLoadPrevChatEl.disabled = true;
+    btnLoadPrevChatEl.textContent = "これ以上過去のチャットはありません";
+  }
+}
+
+function loadPreviousLog() {
+  const prevInfo = findPreviousLogDate(state.oldestLoadedDate);
+  if (!prevInfo) {
+    updateLoadPrevButton();
+    return;
+  }
+
+  const logs = JSON.parse(localStorage.getItem(`companion_chat_${prevInfo.ymd}`) || "[]");
+  if (logs.length === 0) {
+    state.oldestLoadedDate = prevInfo.dateObj;
+    updateLoadPrevButton();
+    return;
+  }
+
+  const prevScrollHeight = elements.chatTimeline.scrollHeight;
+  const prevScrollTop = elements.chatTimeline.scrollTop;
+
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(createDateSeparatorElement(prevInfo.dateStr));
+  logs.forEach((msg) => {
+    fragment.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+  });
+
+  if (loadPrevContainerEl && loadPrevContainerEl.nextSibling) {
+    elements.chatTimeline.insertBefore(fragment, loadPrevContainerEl.nextSibling);
+  } else {
+    elements.chatTimeline.appendChild(fragment);
+  }
+
+  // スクロール位置の復元
+  const newScrollHeight = elements.chatTimeline.scrollHeight;
+  elements.chatTimeline.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+
+  state.oldestLoadedDate = prevInfo.dateObj;
+  updateLoadPrevButton();
+}
+
+function createDateSeparatorElement(label) {
+  const div = document.createElement("div");
+  div.className = "date-separator";
+  const pill = document.createElement("span");
+  pill.className = "date-separator-pill";
+  pill.textContent = label;
+  div.appendChild(pill);
+  return div;
+}
+
+function createMessageBubbleElement(role, text, timeStr) {
+  const rowEl = document.createElement("div");
+  rowEl.className = `chat-row ${role === "user" ? "user-row" : "bot-row"}`;
+
+  // アバター
+  const avatarEl = document.createElement("div");
+  avatarEl.className = "chat-avatar";
+  const avatarImg = document.createElement("img");
+  avatarImg.src = role === "user" ? "assets/icon.png" : "assets/icon.png";
+  avatarImg.onerror = () => { avatarImg.src = "assets/icon.jpg"; };
+  avatarEl.appendChild(avatarImg);
+
+  const containerEl = document.createElement("div");
+  containerEl.className = "bubble-container";
+
+  const bubbleEl = document.createElement("div");
+  bubbleEl.className = `chat-bubble ${role === "user" ? "user-bubble" : "bot-bubble"}`;
+
+  // メタ情報 (発言者 + 時刻)
+  const metaEl = document.createElement("div");
+  metaEl.className = "bubble-meta";
+  const senderEl = document.createElement("span");
+  senderEl.className = "bubble-sender";
+  senderEl.textContent = role === "user" ? "きのぴぃ" : "カピバラ執事";
+
+  const timeEl = document.createElement("span");
+  timeEl.className = "bubble-time";
+  timeEl.textContent = timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  metaEl.appendChild(senderEl);
+  metaEl.appendChild(timeEl);
+
+  const textEl = document.createElement("div");
+  textEl.className = "bubble-text";
+  textEl.textContent = text;
+
+  bubbleEl.appendChild(metaEl);
+  bubbleEl.appendChild(textEl);
+  containerEl.appendChild(bubbleEl);
+
+  // アクション行 (コピー & メモ化)
+  const actionsRowEl = document.createElement("div");
+  actionsRowEl.className = "bubble-actions-row";
+
+  const btnCopy = document.createElement("button");
+  btnCopy.className = "bubble-action-btn";
+  btnCopy.title = "コピー";
+  btnCopy.textContent = "📋";
+  btnCopy.onclick = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    btnCopy.textContent = "✅";
+    setTimeout(() => { btnCopy.textContent = "📋"; }, 1000);
+  };
+
+  const btnMakeMemo = document.createElement("button");
+  btnMakeMemo.className = "bubble-action-btn";
+  btnMakeMemo.title = "メモに保存";
+  btnMakeMemo.textContent = "📝";
+  btnMakeMemo.onclick = (e) => {
+    e.stopPropagation();
+    addMemo(text);
+    btnMakeMemo.textContent = "✅";
+    setTimeout(() => { btnMakeMemo.textContent = "📝"; }, 1000);
+  };
+
+  actionsRowEl.appendChild(btnCopy);
+  actionsRowEl.appendChild(btnMakeMemo);
+  containerEl.appendChild(actionsRowEl);
+
+  if (role === "user") {
+    rowEl.appendChild(containerEl);
+    rowEl.appendChild(avatarEl);
+  } else {
+    rowEl.appendChild(avatarEl);
+    rowEl.appendChild(containerEl);
+  }
+
+  return rowEl;
+}
+
+function addMessageBubble(role, text, timeStr, shouldSave = true) {
+  if (!timeStr) {
+    timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  const rowEl = createMessageBubbleElement(role, text, timeStr);
+  elements.chatTimeline.appendChild(rowEl);
+  scrollToBottom();
+
+  state.conversationHistory.push({
+    role: role === "user" ? "user" : "model",
+    text: text
+  });
+  if (state.conversationHistory.length > 20) {
+    state.conversationHistory.shift();
+  }
+
+  if (shouldSave) {
+    const todayYmd = getTodayYmd();
+    registerLogDate(todayYmd);
+    const logs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+    logs.push({ role, text, time: timeStr });
+    localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(logs));
+  }
+}
+
+function scrollToBottom() {
+  setTimeout(() => {
+    elements.chatTimeline.scrollTop = elements.chatTimeline.scrollHeight;
+  }, 50);
 }
 
 // ==========================================
@@ -240,14 +669,13 @@ async function handleUserSend() {
   if (!text) return;
 
   elements.userInput.value = "";
-  addMessage("user", text);
+  addMessageBubble("user", text, null, true);
 
-  // コマンド判定（タイマー、メモなど）
+  // コマンド判定
   if (handleSpecialCommands(text)) {
     return;
   }
 
-  // Gemini API または 内蔵応答
   if (state.geminiEnabled && state.geminiApiKey) {
     await callGeminiApi(text);
   } else {
@@ -255,62 +683,14 @@ async function handleUserSend() {
   }
 }
 
-function addMessage(sender, text) {
-  const msgObj = {
-    sender,
-    text,
-    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  };
-  state.chatHistory.push(msgObj);
-  // 最大100件保持
-  if (state.chatHistory.length > 100) {
-    state.chatHistory.shift();
-  }
-  localStorage.setItem("companion_chat_history", JSON.stringify(state.chatHistory));
-
-  renderMessageDOM(msgObj);
-  scrollToBottom();
-}
-
-function renderMessageDOM(msgObj) {
-  const div = document.createElement("div");
-  div.className = `message-bubble ${msgObj.sender}-msg`;
-
-  const content = document.createElement("div");
-  content.className = "message-content";
-  content.textContent = msgObj.text;
-
-  const time = document.createElement("div");
-  time.className = "message-time";
-  time.textContent = msgObj.time;
-
-  div.appendChild(content);
-  div.appendChild(time);
-  elements.chatTimeline.appendChild(div);
-}
-
-function renderChatHistory() {
-  elements.chatTimeline.innerHTML = "";
-  state.chatHistory.forEach(renderMessageDOM);
-  scrollToBottom();
-}
-
-function scrollToBottom() {
-  setTimeout(() => {
-    elements.chatTimeline.scrollTop = elements.chatTimeline.scrollHeight;
-  }, 50);
-}
-
 // ==========================================
-// Gemini API 呼び出し (Thinking対応: gemini-3.6-flash, 1000 tokens)
+// Gemini API 呼び出し (Thinking対応: 1000 tokens)
 // ==========================================
 async function callGeminiApi(userPrompt) {
   elements.aiStatusIndicator.classList.remove("hidden");
 
-  // 会話履歴をGemini contents形式に変換（直近6件）
-  const recentHistory = state.chatHistory.slice(-6);
-  const contents = recentHistory.map((m) => ({
-    role: m.sender === "user" ? "user" : "model",
+  const contents = state.conversationHistory.map((m) => ({
+    role: m.role,
     parts: [{ text: m.text }]
   }));
 
@@ -340,7 +720,7 @@ async function callGeminiApi(userPrompt) {
     if (data.error) {
       console.error("Gemini Error:", data.error);
       const errReply = `ごめんね、Geminiの通信でエラーが出ちゃった（${data.error.message || "エラー"}）。内蔵モードで答えるね。`;
-      addMessage("bot", errReply);
+      addMessageBubble("bot", errReply, null, true);
       speakText(errReply);
       return;
     }
@@ -349,34 +729,24 @@ async function callGeminiApi(userPrompt) {
     const replyText = candidate?.content?.parts?.[0]?.text || "（返答を生成できませんでした）";
 
     // トークン消費集計
-    if (data.usageMetadata) {
-      const used = data.usageMetadata.totalTokenCount || 0;
-      state.todayTokens += used;
-      state.totalTokens += used;
-      localStorage.setItem("companion_today_tokens", state.todayTokens.toString());
-      localStorage.setItem("companion_total_tokens", state.totalTokens.toString());
-      updateTokenDisplay();
+    if (data.usageMetadata && data.usageMetadata.totalTokenCount) {
+      recordTokenUsage(data.usageMetadata.totalTokenCount);
     }
 
-    addMessage("bot", replyText);
+    addMessageBubble("bot", replyText, null, true);
     speakText(replyText);
 
   } catch (err) {
     elements.aiStatusIndicator.classList.add("hidden");
     console.error("Fetch Gemini error:", err);
     const fallbackReply = "通信環境が不安定みたい。でもぼくはいつでもきのぴぃの味方だよ！";
-    addMessage("bot", fallbackReply);
+    addMessageBubble("bot", fallbackReply, null, true);
     speakText(fallbackReply);
   }
 }
 
-// ==========================================
-// 内蔵ルール応答
-// ==========================================
 function handleBuiltinResponse(text) {
   let reply = "";
-  const lower = text.toLowerCase();
-
   if (text.includes("おつかれ") || text.includes("疲れた") || text.includes("つかれた") || text.includes("もう無理")) {
     reply = "きのぴぃ、本当にお疲れさま！無理は禁物だよ。温かい飲み物でも飲んで、サウナに入った気分で深呼吸しよ！";
   } else if (text.includes("進捗") || text.includes("予定") || text.includes("タスク")) {
@@ -389,33 +759,28 @@ function handleBuiltinResponse(text) {
     reply = `「${text}」だね！Gemini連動をONにするともっと詳しくおしゃべりできるよ。いつでも何でも言ってね！`;
   }
 
-  addMessage("bot", reply);
+  addMessageBubble("bot", reply, null, true);
   speakText(reply);
 }
 
-// ==========================================
-// 特殊コマンド処理（メモ・タイマー）
-// ==========================================
 function handleSpecialCommands(text) {
-  // メモ登録判定
   if (text.startsWith("メモ:") || text.startsWith("メモ：") || text.startsWith("memo:")) {
     const memoBody = text.replace(/^(メモ[:：]|memo:)\s*/i, "").trim();
     if (memoBody) {
       addMemo(memoBody);
       const reply = `メモ「${memoBody}」を保管したよ！📋ボタンからいつでも確認・管理できるよ。`;
-      addMessage("bot", reply);
+      addMessageBubble("bot", reply, null, true);
       speakText(reply);
       return true;
     }
   }
 
-  // タイマー判定 (例: 15分タイマー, 3分タイマー, タイマー 10分)
   const timerMatch = text.match(/(\d+)\s*(分|min)/i);
   if (timerMatch && (text.includes("タイマー") || text.includes("測って") || text.includes("はかって"))) {
     const minutes = parseInt(timerMatch[1], 10);
     startTimer(minutes);
     const reply = `${minutes}分タイマーをセットしたよ！集中して、終わったらチャイムで教えるね。`;
-    addMessage("bot", reply);
+    addMessageBubble("bot", reply, null, true);
     speakText(reply);
     return true;
   }
@@ -423,9 +788,6 @@ function handleSpecialCommands(text) {
   return false;
 }
 
-// ==========================================
-// クイックアクション
-// ==========================================
 function handleQuickAction(action) {
   if (action === "memo") {
     elements.userInput.value = "メモ: ";
@@ -443,7 +805,7 @@ function handleQuickAction(action) {
 }
 
 // ==========================================
-// タイマー機能 & Web Audio チャイム
+// タイマー & Web Audio チャイム
 // ==========================================
 function startTimer(minutes) {
   if (state.activeTimer) {
@@ -463,7 +825,7 @@ function startTimer(minutes) {
       elements.timerBadge.classList.add("hidden");
       playChime();
       const msg = `きのぴぃ、${minutes}分経ったよ！お疲れさま！一息つこうね。`;
-      addMessage("bot", msg);
+      addMessageBubble("bot", msg, null, true);
       speakText(msg);
     }
   }, 1000);
@@ -475,11 +837,10 @@ function updateTimerDisplay() {
   elements.timerBadge.textContent = `⏱️ ${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Web Audio APIによる軽やかなチャイム音
 function playChime() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.50];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -493,22 +854,19 @@ function playChime() {
       osc.stop(ctx.currentTime + idx * 0.15 + 0.4);
     });
   } catch (e) {
-    console.warn("Web Audio Chime failed:", e);
+    console.warn("Chime error:", e);
   }
 }
 
 // ==========================================
-// 音声合成 (VOICEVOX Web API / iOS SpeechSynthesis)
+// 音声合成 (VOICEVOX Web API & iOS Web Speech 最適化)
 // ==========================================
-let currentAudio = null;
-
 async function speakText(text) {
   if (!state.voiceEnabled) return;
 
-  // 既存再生の停止
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
+  if (state.currentAudio) {
+    state.currentAudio.pause();
+    state.currentAudio = null;
   }
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
@@ -518,59 +876,59 @@ async function speakText(text) {
 
   // OS標準音声の場合
   if (state.voiceSpeaker === "os") {
-    if ("speechSynthesis" in window) {
-      const uttr = new SpeechSynthesisUtterance(text);
-      uttr.lang = "ja-JP";
-      uttr.pitch = state.voicePitch;
-      uttr.rate = state.voiceRate;
-      uttr.onend = () => elements.speakingIndicator.classList.add("hidden");
-      uttr.onerror = () => elements.speakingIndicator.classList.add("hidden");
-      window.speechSynthesis.speak(uttr);
-    } else {
-      elements.speakingIndicator.classList.add("hidden");
-    }
+    playWebSpeech(text);
     return;
   }
 
   // VOICEVOX Web API (tts.quest)
   const speakerId = state.voiceSpeaker;
-  const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150); // 長文カット
+  const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
   const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
 
   try {
     const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.mp3DownloadUrl || data.audioStatusUrl) {
-      const audioUrl = data.mp3DownloadUrl || data.audioStatusUrl;
-      currentAudio = new Audio(audioUrl);
-      currentAudio.playbackRate = state.voiceRate;
-      currentAudio.onended = () => {
+    const audioUrl = data.mp3DownloadUrl || data.audioStatusUrl;
+
+    if (audioUrl) {
+      state.currentAudio = new Audio(audioUrl);
+      state.currentAudio.playbackRate = state.voiceRate;
+      state.currentAudio.onended = () => {
         elements.speakingIndicator.classList.add("hidden");
-        currentAudio = null;
+        state.currentAudio = null;
       };
-      currentAudio.onerror = () => {
+      state.currentAudio.onerror = () => {
         elements.speakingIndicator.classList.add("hidden");
+        playWebSpeech(text);
       };
-      await currentAudio.play();
+      await state.currentAudio.play();
     } else {
-      throw new Error("VOICEVOX URL not found");
+      throw new Error("No audio url returned");
     }
   } catch (err) {
-    console.warn("VOICEVOX Web API failed, fallback to Web Speech:", err);
-    if ("speechSynthesis" in window) {
-      const uttr = new SpeechSynthesisUtterance(text);
-      uttr.lang = "ja-JP";
-      uttr.onend = () => elements.speakingIndicator.classList.add("hidden");
-      uttr.onerror = () => elements.speakingIndicator.classList.add("hidden");
-      window.speechSynthesis.speak(uttr);
-    } else {
-      elements.speakingIndicator.classList.add("hidden");
-    }
+    console.warn("VOICEVOX failed, fallback to Web Speech:", err);
+    playWebSpeech(text);
+  }
+}
+
+function playWebSpeech(text) {
+  if ("speechSynthesis" in window) {
+    const cleanText = text.replace(/[*_#`]/g, "");
+    const uttr = new SpeechSynthesisUtterance(cleanText);
+    uttr.lang = "ja-JP";
+    uttr.pitch = state.voicePitch;
+    uttr.rate = state.voiceRate;
+    uttr.onend = () => elements.speakingIndicator.classList.add("hidden");
+    uttr.onerror = () => elements.speakingIndicator.classList.add("hidden");
+    window.speechSynthesis.speak(uttr);
+  } else {
+    elements.speakingIndicator.classList.add("hidden");
   }
 }
 
 // ==========================================
-// 音声認識 (Web Speech API)
+// 音声認識 (iOS Safari / PWA 最適化)
 // ==========================================
 function initVoiceRecognition() {
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -587,6 +945,7 @@ function initVoiceRecognition() {
   state.recognition.onstart = () => {
     state.isRecording = true;
     elements.btnVoiceInput.classList.add("recording");
+    elements.listeningIndicator.classList.remove("hidden");
   };
 
   state.recognition.onresult = (e) => {
@@ -606,8 +965,9 @@ function initVoiceRecognition() {
 }
 
 function toggleVoiceRecognition() {
+  unlockAudioContext();
   if (!state.recognition) {
-    alert("お使いのブラウザは音声入力に対応していません。SafariまたはChromeをご利用ください。");
+    alert("お使いのブラウザは音声入力に対応していません。Safariの設定でマイク権限を許可してください。");
     return;
   }
   if (state.isRecording) {
@@ -617,6 +977,7 @@ function toggleVoiceRecognition() {
       state.recognition.start();
     } catch (e) {
       console.warn("Voice start error:", e);
+      stopVoiceRecognition();
     }
   }
 }
@@ -624,10 +985,11 @@ function toggleVoiceRecognition() {
 function stopVoiceRecognition() {
   state.isRecording = false;
   elements.btnVoiceInput.classList.remove("recording");
+  elements.listeningIndicator.classList.add("hidden");
 }
 
 // ==========================================
-// メモ管理機能
+// メモ管理
 // ==========================================
 function addMemo(content) {
   const memo = {
@@ -707,54 +1069,170 @@ function createMemoItemDOM(memo) {
 }
 
 // ==========================================
-// Kumapy 連携 (Google Sheets CSV/JSON fetch)
+// Kumapy スプレッドシート連携 (Mac版と完全同一ロジック)
 // ==========================================
-async function fetchKumapySchedule() {
-  elements.kumapyText.textContent = "Kumapyタスクを確認中...";
-  elements.kumapyIcon.textContent = "⏳";
+function parseCsv(csvText) {
+  const rows = [];
+  let row = [];
+  let inQuotes = false;
+  let currentField = '';
 
-  let sheetId = state.kumapyUrl.trim();
-  const match = sheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (match) {
-    sheetId = match[1];
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        currentField += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        currentField += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        row.push(currentField);
+        currentField = '';
+      } else if (char === '\r' || char === '\n') {
+        row.push(currentField);
+        currentField = '';
+        if (row.length > 0 && row.some(cell => cell.trim() !== '')) {
+          rows.push(row);
+        }
+        row = [];
+        if (char === '\r' && nextChar === '\n') i++;
+      } else {
+        currentField += char;
+      }
+    }
   }
-
-  if (!sheetId) {
-    elements.kumapyText.textContent = "スプレッドシートID未設定";
-    elements.kumapyIcon.textContent = "⚠️";
-    return;
+  if (currentField || row.length > 0) {
+    row.push(currentField);
+    rows.push(row);
   }
-
-  // Google Sheets 公開CSVエンドポイント (gviz/tq)
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=CalendarEventsKumapy`;
-
-  try {
-    const res = await fetch(csvUrl);
-    if (!res.ok) throw new Error("Fetch failed");
-    const csvText = await res.text();
-    parseKumapyCSV(csvText);
-  } catch (err) {
-    console.warn("Kumapy CSV Fetch failed:", err);
-    elements.kumapyText.textContent = "タスク: 予定を取得できませんでした（IDまたは公開設定を確認）";
-    elements.kumapyIcon.textContent = "📌";
-  }
+  return rows;
 }
 
-function parseKumapyCSV(csv) {
-  const lines = csv.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-  if (lines.length <= 1) {
-    elements.kumapyText.textContent = "進行中のタスクはありません（自由時間！）";
-    elements.kumapyIcon.textContent = "☕";
+async function fetchKumapyTasks() {
+  let sheetId = state.kumapyUrl.trim();
+  const match = sheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) sheetId = match[1];
+
+  if (!sheetId) {
+    if (elements.kumapyText) elements.kumapyText.textContent = "⚙️ Kumapy設定が必要です";
     return;
   }
 
-  // 直近の予定（2行目以降）を抽出
-  const firstRow = lines[1].split(",").map(cell => cell.replace(/^"|"$/g, ""));
-  const summary = firstRow[1] || firstRow[0] || "タスク作業";
-  const startTime = firstRow[2] || "";
+  if (elements.btnKumapyRefresh) elements.btnKumapyRefresh.classList.add("spinning");
 
-  elements.kumapyText.textContent = `次: ${summary} ${startTime ? `(${startTime})` : ""}`;
-  elements.kumapyIcon.textContent = "🎯";
+  try {
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const nowHm = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=CalendarEventsKumapy`;
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const csvText = await res.text();
+    const rows = parseCsv(csvText);
+
+    if (rows.length <= 1) {
+      throw new Error("データが空です");
+    }
+
+    const tasks = [];
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i];
+      if (cols.length < 11) continue;
+      const taskYmd = cols[1];
+      if (taskYmd === ymd) {
+        tasks.push({
+          taskId: cols[0],
+          ymd: taskYmd,
+          title: cols[4] || "無題",
+          planStartHm: cols[6] || "",
+          planEndHm: cols[7] || "",
+          allDay: cols[8] === "TRUE",
+          status: cols[10] || "未着手",
+          isDone: (cols[10] === "完了"),
+          isSkipped: (cols[10] === "中止" || cols[10] === "不要" || cols[10] === "翌日移動"),
+          actStartHm: cols[13] || ""
+        });
+      }
+    }
+
+    // 1. 実行中のタスク
+    const running = tasks.find(t => t.status === "実行中");
+
+    // 2. 次回予定の判定
+    const activeTasks = tasks.filter(t => {
+      if (t.status === "完了" || t.status === "中止" || t.status === "不要" || t.status === "翌日移動" || t.allDay) return false;
+      return true;
+    });
+
+    const inCurrentWindow = activeTasks.filter(t => {
+      if (!t.planStartHm) return false;
+      if (t.planEndHm) {
+        return t.planStartHm <= nowHm && t.planEndHm > nowHm;
+      }
+      return t.planStartHm <= nowHm;
+    }).sort((a, b) => (b.planStartHm || "").localeCompare(a.planStartHm || ""));
+
+    const upcomingAfterNow = activeTasks.filter(t => {
+      if (!t.planStartHm) return false;
+      return t.planStartHm > nowHm;
+    }).sort((a, b) => a.planStartHm.localeCompare(b.planStartHm));
+
+    let nextTargetTask = null;
+    let nextTargetType = "";
+
+    if (inCurrentWindow.length > 0) {
+      nextTargetTask = inCurrentWindow[0];
+      nextTargetType = "in_window";
+    } else if (upcomingAfterNow.length > 0) {
+      nextTargetTask = upcomingAfterNow[0];
+      nextTargetType = "upcoming";
+    }
+
+    const remaining = activeTasks;
+
+    // 3. UI表示更新 (Mac版完全同一)
+    if (running) {
+      elements.kumapyIcon.textContent = "🎯";
+      elements.kumapyText.textContent = `[計測中] ${running.title} (${running.actStartHm || "実行中"}〜)`;
+      elements.kumapyStatusBar.title = `【進行中タスク】${running.title}\n開始: ${running.actStartHm || ""}`;
+    } else if (nextTargetTask) {
+      const timeLabel = nextTargetTask.planEndHm ? `${nextTargetTask.planStartHm}-${nextTargetTask.planEndHm}` : `${nextTargetTask.planStartHm}〜`;
+      const prefix = nextTargetType === "in_window" ? "[予定]" : "[次回]";
+      const countSuffix = remaining.length > 1 ? ` (残${remaining.length}件)` : "";
+      elements.kumapyIcon.textContent = "📅";
+      elements.kumapyText.textContent = `${prefix} ${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
+      elements.kumapyStatusBar.title = `【${nextTargetType === "in_window" ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
+    } else {
+      if (remaining.length > 0) {
+        elements.kumapyIcon.textContent = "🐻";
+        elements.kumapyText.textContent = `[本日残り] ${remaining[0].title}${remaining.length > 1 ? ` 他${remaining.length - 1}件` : ""}`;
+        elements.kumapyStatusBar.title = `本日残り: ${remaining.length}件`;
+      } else {
+        elements.kumapyIcon.textContent = "✨";
+        elements.kumapyText.textContent = "本日の予定・タスク完了！";
+        elements.kumapyStatusBar.title = "すべての予定・タスクが完了しています";
+      }
+    }
+  } catch (err) {
+    console.warn("fetchKumapyTasks error:", err);
+    elements.kumapyIcon.textContent = "⚠️";
+    elements.kumapyText.textContent = "Kumapy未接続 (タップで確認)";
+    elements.kumapyStatusBar.title = `通信エラー: ${err.message}`;
+  } finally {
+    if (elements.btnKumapyRefresh) {
+      setTimeout(() => elements.btnKumapyRefresh.classList.remove("spinning"), 400);
+    }
+  }
 }
 
 // ==========================================
@@ -779,5 +1257,6 @@ function saveSettings() {
 
   updateBadgeState();
   elements.settingsPanel.classList.add("hidden");
-  addMessage("bot", "設定を保存したよ！ありがとう！");
+  addMessageBubble("bot", "設定を保存したよ！ありがとう！", null, true);
+  fetchKumapyTasks();
 }
