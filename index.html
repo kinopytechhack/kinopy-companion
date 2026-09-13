@@ -9,20 +9,20 @@
   <title>Kinopy Companion</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260914-0825">
+  <link rel="manifest" href="manifest.json?v=20260914-0830">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Companion">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <link rel="icon" href="assets/icon.png">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260914-0825">
+  <link rel="stylesheet" href="style.css?v=20260914-0830">
 </head>
 <body>
   <div class="app-container">
     
-    <!-- 1. 吹き出しヘッダー (Mac版完全同一) -->
+    <!-- 1. ヘッダー (Mac版完全同一) -->
     <header class="app-header">
       <div class="header-left">
         <div class="avatar-wrapper" id="header-avatar-btn" title="相棒アバター">
@@ -194,17 +194,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260914-0825"></script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js?v=20260914-0825").then((reg) => {
-          reg.update();
-        }).catch((err) => {
-          console.warn("SW reg error:", err);
-        });
-      });
-    }
-  </script>
+  <script src="app.js?v=20260914-0830"></script>
 </body>
 </html>
