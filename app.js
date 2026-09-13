@@ -1,5 +1,5 @@
 // ==========================================================================
-// Kinopy Companion PWA - Main Logic
+// Kinopy Companion PWA - Main Logic (Desktop Companion Exact Feature Parity)
 // ==========================================================================
 
 const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ（親友 × 執事）です。
@@ -31,7 +31,7 @@ const state = {
   tokenUsageDate: localStorage.getItem("gemini_token_date") || new Date().toISOString().slice(0, 10),
   
   // チャット・ログ管理
-  conversationHistory: [], // Geminiコンテキスト用
+  conversationHistory: [],
   oldestLoadedDate: new Date(),
   allLogDates: JSON.parse(localStorage.getItem("companion_chat_dates") || "[]"),
 
@@ -92,13 +92,11 @@ const elements = {
   headerAvatarBtn: document.getElementById("header-avatar-btn"),
   
   // チャット検索
-  btnChatSearchToggle: document.getElementById("btn-chat-search-toggle"),
   chatSearchBar: document.getElementById("chat-search-bar"),
   chatSearchInput: document.getElementById("chat-search-input"),
   chatSearchCount: document.getElementById("chat-search-count"),
   btnSearchPrev: document.getElementById("btn-search-prev"),
-  btnSearchNext: document.getElementById("btn-search-next"),
-  btnSearchClose: document.getElementById("btn-search-close")
+  btnSearchNext: document.getElementById("btn-search-next")
 };
 
 let btnLoadPrevChatEl = null;
@@ -118,12 +116,11 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchKumapyTasks();
   setInterval(fetchKumapyTasks, 30 * 1000); // 30秒ポーリング
 
-  // iOS オーディオアンロック (初回タップ時)
+  // iOS オーディオアンロック
   document.addEventListener("touchstart", unlockAudioContext, { once: true });
   document.addEventListener("click", unlockAudioContext, { once: true });
 });
 
-// オーディオアンロック (iOS Safari / PWA 対策)
 function unlockAudioContext() {
   if (state.audioUnlocked) return;
   state.audioUnlocked = true;
@@ -132,7 +129,6 @@ function unlockAudioContext() {
     if (ctx.state === "suspended") {
       ctx.resume();
     }
-    // 空の音声再生
     if ("speechSynthesis" in window) {
       const silent = new SpeechSynthesisUtterance("");
       silent.volume = 0;
@@ -144,7 +140,7 @@ function unlockAudioContext() {
 }
 
 // ==========================================
-// トークン消費集計 (Mac版と完全同一)
+// トークン消費集計 (Mac版完全同一)
 // ==========================================
 function initTokenUsage() {
   const todayYmd = new Date().toISOString().slice(0, 10);
@@ -218,7 +214,7 @@ function setupEventListeners() {
     }
   });
 
-  // 音声入力 (iOS Safariで即座に開始できるようtouch/click両対応)
+  // 音声入力
   elements.btnVoiceInput.addEventListener("click", toggleVoiceRecognition);
 
   // 設定パネル
@@ -283,8 +279,8 @@ function setupEventListeners() {
     speakText("きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。");
   });
 
-  // クイックアクションボタン（アイコンのみ）
-  document.querySelectorAll(".quick-chip-btn").forEach((btn) => {
+  // クイックアクションボタン
+  document.querySelectorAll(".quick-actions-left .quick-icon-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.dataset.action;
       handleQuickAction(action);
@@ -304,7 +300,7 @@ function setupEventListeners() {
     speakText(picked);
   });
 
-  // チャット検索
+  // チャット検索（Mac版完全同一常時検索）
   initChatSearchEvents();
 }
 
@@ -312,23 +308,6 @@ function setupEventListeners() {
 // チャット検索機能 (Mac版完全同一)
 // ==========================================
 function initChatSearchEvents() {
-  elements.btnChatSearchToggle.addEventListener("click", () => {
-    const isHidden = elements.chatSearchBar.classList.toggle("hidden");
-    if (!isHidden) {
-      elements.chatSearchInput.focus();
-      if (elements.chatSearchInput.value.trim()) {
-        performChatSearch(elements.chatSearchInput.value.trim());
-      }
-    } else {
-      clearChatSearch();
-    }
-  });
-
-  elements.btnSearchClose.addEventListener("click", () => {
-    elements.chatSearchBar.classList.add("hidden");
-    clearChatSearch();
-  });
-
   elements.chatSearchInput.addEventListener("input", (e) => {
     performChatSearch(e.target.value.trim());
   });
@@ -423,7 +402,7 @@ function escapeHtml(str) {
 }
 
 // ==========================================
-// 過去ログ読み込み & タイムライン構築
+// 過去ログ読み込み & タイムライン構築 (Mac版完全同一)
 // ==========================================
 function getTodayYmd() {
   const d = new Date();
@@ -439,12 +418,12 @@ function initChatTimeline() {
   elements.chatTimeline.innerHTML = "";
   state.oldestLoadedDate = new Date();
 
-  // 1. 最上部に過去ログ読み込みボタン
+  // 1. 最上部に過去ログ読み込みボタン (Mac版完全同一)
   loadPrevContainerEl = document.createElement("div");
   loadPrevContainerEl.className = "load-prev-container";
   btnLoadPrevChatEl = document.createElement("button");
   btnLoadPrevChatEl.className = "load-prev-btn";
-  btnLoadPrevChatEl.textContent = "📜 過去のチャットを読み込む";
+  btnLoadPrevChatEl.textContent = "これ以上過去のチャットはありません";
   btnLoadPrevChatEl.addEventListener("click", loadPreviousLog);
   loadPrevContainerEl.appendChild(btnLoadPrevChatEl);
   elements.chatTimeline.appendChild(loadPrevContainerEl);
@@ -463,7 +442,6 @@ function initChatTimeline() {
       state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
     });
   } else {
-    // 初回挨拶
     addMessageBubble("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！", null, true);
   }
 
@@ -494,7 +472,7 @@ function updateLoadPrevButton() {
   const prevInfo = findPreviousLogDate(state.oldestLoadedDate);
   if (prevInfo) {
     btnLoadPrevChatEl.disabled = false;
-    btnLoadPrevChatEl.textContent = `📜 過去のチャットを読み込む (${prevInfo.dateStr})`;
+    btnLoadPrevChatEl.textContent = `過去のチャットを読み込む (${prevInfo.dateStr})`;
     loadPrevContainerEl.classList.remove("hidden");
   } else {
     btnLoadPrevChatEl.disabled = true;
@@ -531,7 +509,6 @@ function loadPreviousLog() {
     elements.chatTimeline.appendChild(fragment);
   }
 
-  // スクロール位置の復元
   const newScrollHeight = elements.chatTimeline.scrollHeight;
   elements.chatTimeline.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
 
@@ -553,11 +530,10 @@ function createMessageBubbleElement(role, text, timeStr) {
   const rowEl = document.createElement("div");
   rowEl.className = `chat-row ${role === "user" ? "user-row" : "bot-row"}`;
 
-  // アバター
   const avatarEl = document.createElement("div");
   avatarEl.className = "chat-avatar";
   const avatarImg = document.createElement("img");
-  avatarImg.src = role === "user" ? "assets/icon.png" : "assets/icon.png";
+  avatarImg.src = "assets/icon.png";
   avatarImg.onerror = () => { avatarImg.src = "assets/icon.jpg"; };
   avatarEl.appendChild(avatarImg);
 
@@ -567,7 +543,6 @@ function createMessageBubbleElement(role, text, timeStr) {
   const bubbleEl = document.createElement("div");
   bubbleEl.className = `chat-bubble ${role === "user" ? "user-bubble" : "bot-bubble"}`;
 
-  // メタ情報 (発言者 + 時刻)
   const metaEl = document.createElement("div");
   metaEl.className = "bubble-meta";
   const senderEl = document.createElement("span");
@@ -589,7 +564,7 @@ function createMessageBubbleElement(role, text, timeStr) {
   bubbleEl.appendChild(textEl);
   containerEl.appendChild(bubbleEl);
 
-  // アクション行 (コピー & メモ化)
+  // アクション行 (右下に寄せる)
   const actionsRowEl = document.createElement("div");
   actionsRowEl.className = "bubble-actions-row";
 
@@ -671,7 +646,6 @@ async function handleUserSend() {
   elements.userInput.value = "";
   addMessageBubble("user", text, null, true);
 
-  // コマンド判定
   if (handleSpecialCommands(text)) {
     return;
   }
@@ -683,9 +657,6 @@ async function handleUserSend() {
   }
 }
 
-// ==========================================
-// Gemini API 呼び出し (Thinking対応: 1000 tokens)
-// ==========================================
 async function callGeminiApi(userPrompt) {
   elements.aiStatusIndicator.classList.remove("hidden");
 
@@ -728,7 +699,6 @@ async function callGeminiApi(userPrompt) {
     const candidate = data.candidates && data.candidates[0];
     const replyText = candidate?.content?.parts?.[0]?.text || "（返答を生成できませんでした）";
 
-    // トークン消費集計
     if (data.usageMetadata && data.usageMetadata.totalTokenCount) {
       recordTokenUsage(data.usageMetadata.totalTokenCount);
     }
@@ -874,13 +844,11 @@ async function speakText(text) {
 
   elements.speakingIndicator.classList.remove("hidden");
 
-  // OS標準音声の場合
   if (state.voiceSpeaker === "os") {
     playWebSpeech(text);
     return;
   }
 
-  // VOICEVOX Web API (tts.quest)
   const speakerId = state.voiceSpeaker;
   const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
   const url = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
@@ -1016,7 +984,7 @@ function renderMemos() {
 
   elements.memoActiveList.innerHTML = "";
   if (activeMemos.length === 0) {
-    elements.memoActiveList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 4px;">保管中のメモはありません</div>';
+    elements.memoActiveList.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 4px;">保管中のメモはありません</div>';
   } else {
     activeMemos.forEach(memo => {
       elements.memoActiveList.appendChild(createMemoItemDOM(memo));
@@ -1025,7 +993,7 @@ function renderMemos() {
 
   elements.memoArchivedList.innerHTML = "";
   if (archivedMemos.length === 0) {
-    elements.memoArchivedList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px 4px;">アーカイブされたメモはありません</div>';
+    elements.memoArchivedList.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 4px;">アーカイブされたメモはありません</div>';
   } else {
     archivedMemos.forEach(memo => {
       elements.memoArchivedList.appendChild(createMemoItemDOM(memo));
@@ -1069,7 +1037,7 @@ function createMemoItemDOM(memo) {
 }
 
 // ==========================================
-// Kumapy スプレッドシート連携 (Mac版と完全同一ロジック)
+// Kumapy スプレッドシート連携 (Mac版完全同一)
 // ==========================================
 function parseCsv(csvText) {
   const rows = [];
@@ -1165,10 +1133,8 @@ async function fetchKumapyTasks() {
       }
     }
 
-    // 1. 実行中のタスク
     const running = tasks.find(t => t.status === "実行中");
 
-    // 2. 次回予定の判定
     const activeTasks = tasks.filter(t => {
       if (t.status === "完了" || t.status === "中止" || t.status === "不要" || t.status === "翌日移動" || t.allDay) return false;
       return true;
@@ -1200,7 +1166,6 @@ async function fetchKumapyTasks() {
 
     const remaining = activeTasks;
 
-    // 3. UI表示更新 (Mac版完全同一)
     if (running) {
       elements.kumapyIcon.textContent = "🎯";
       elements.kumapyText.textContent = `[計測中] ${running.title} (${running.actStartHm || "実行中"}〜)`;

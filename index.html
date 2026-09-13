@@ -3,42 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Kinopy Companion</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=20260914-0825">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Companion">
   <link rel="apple-touch-icon" href="assets/icon.png">
   <link rel="icon" href="assets/icon.png">
-  <meta name="theme-color" content="#f8fafc">
+  <meta name="theme-color" content="#ffffff">
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260914-0825">
 </head>
 <body>
   <div class="app-container">
-    <!-- ヘッダーバー -->
+    
+    <!-- 1. 吹き出しヘッダー (Mac版完全同一) -->
     <header class="app-header">
       <div class="header-left">
         <div class="avatar-wrapper" id="header-avatar-btn" title="相棒アバター">
           <img src="assets/icon.png" alt="Companion" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.jpg'">
         </div>
-        <div class="header-titles">
-          <div class="header-main-title">
-            <span class="title-text">Companion</span>
-            <span id="ai-mode-badge" class="ai-mode-badge" title="タップでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
-          </div>
-        </div>
+        <span class="panel-drag-title">Companion</span>
+        <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
       </div>
       <div class="header-actions">
-        <button id="btn-chat-search-toggle" class="icon-btn" title="チャット内検索">🔍</button>
-        <button id="btn-settings-toggle" class="icon-btn" title="設定">⚙️</button>
+        <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
       </div>
     </header>
 
-    <!-- Kumapy 進行中タスク＆直近予定ステータスバー -->
-    <div class="kumapy-status-bar" id="kumapy-status-bar" title="タップでKumapyを開く">
+    <!-- 2. Kumapy 進行中タスク＆直近予定ステータスバー (Mac版完全同一) -->
+    <div class="kumapy-status-bar" id="kumapy-status-bar" title="クリックでKumapyを開く">
       <div class="kumapy-status-main">
         <span class="kumapy-icon" id="kumapy-icon">🎯</span>
         <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
@@ -46,16 +45,15 @@
       <button id="btn-kumapy-refresh" class="kumapy-refresh-btn" title="タスク更新">↻</button>
     </div>
 
-    <!-- チャット検索バー（トグル表示対応） -->
-    <div id="chat-search-bar" class="chat-search-bar hidden">
+    <!-- 3. チャット検索バー (常時表示・Mac版完全同一) -->
+    <div id="chat-search-bar" class="chat-search-bar">
       <input type="text" id="chat-search-input" placeholder="チャットを検索..." />
       <span id="chat-search-count" class="chat-search-count">0/0</span>
       <button id="btn-search-prev" class="mini-search-btn" title="前の一致">▲</button>
       <button id="btn-search-next" class="mini-search-btn" title="次の一致">▼</button>
-      <button id="btn-search-close" class="mini-search-btn" title="閉じる">✕</button>
     </div>
 
-    <!-- チャットタイムライン -->
+    <!-- 4. LINE風チャットタイムライン (Mac版完全同一) -->
     <main class="chat-thread-container" id="chat-container">
       <div class="chat-timeline" id="chat-timeline">
         <!-- 過去ログ読み込みボタン & メッセージが動的に挿入されます -->
@@ -63,29 +61,28 @@
       <div class="speech-status">
         <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
         <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
-        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声認識中...</span>
+        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声聞き取り中...</span>
         <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
       </div>
     </main>
 
-    <!-- フッター・入力エリア -->
-    <footer class="app-footer">
-      <!-- アクションバー（左: 📝💡🍪🛌 / 右: 🎤📋🔊） -->
-      <div class="quick-actions-bar">
-        <div class="quick-actions-left">
-          <button class="quick-chip-btn" data-action="memo" title="📝 メモ入力">📝</button>
-          <button class="quick-chip-btn" data-action="coach" title="💡 モヤモヤ相談">💡</button>
-          <button class="quick-chip-btn" data-action="snack" title="🍪 おやつ">🍪</button>
-          <button class="quick-chip-btn" data-action="tired" title="🛌 もう無理">🛌</button>
-        </div>
-        <div class="quick-actions-right">
-          <button id="btn-voice-input" class="quick-chip-btn action-mic-btn" title="🎤 音声入力 (タップで録音開始/停止)">🎤</button>
-          <button id="btn-memo-manage" class="quick-chip-btn" title="📋 メモ管理を開く">📋</button>
-          <button id="btn-sound-toggle" class="quick-chip-btn" title="🔊 音声読み上げオン/オフ">🔊</button>
-        </div>
+    <!-- 5. クイックアイコンバー (入力欄のすぐ上・左:📝💡🍪🛌 / 右:🎤📋🔊) -->
+    <div class="quick-actions-bar">
+      <div class="quick-actions-left">
+        <button class="quick-icon-btn" data-action="memo" title="📝 メモをチャットで入力">📝</button>
+        <button class="quick-icon-btn" data-action="coach" title="💡 モヤモヤ">💡</button>
+        <button class="quick-icon-btn" data-action="snack" title="🍪 おなか減った">🍪</button>
+        <button class="quick-icon-btn" data-action="tired" title="🛌 もう無理">🛌</button>
       </div>
+      <div class="quick-actions-right">
+        <button id="btn-voice-input" class="quick-icon-btn voice-input-btn" title="🎤 音声入力 (クリックで録音開始/停止)">🎤</button>
+        <button id="btn-memo-manage" class="quick-icon-btn" title="📋 メモ管理を開く">📋</button>
+        <button id="btn-sound-toggle" class="quick-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
+      </div>
+    </div>
 
-      <!-- チャット入力欄 -->
+    <!-- 6. チャット入力欄 (Mac版完全同一) -->
+    <footer class="app-footer">
       <div class="chat-input-area">
         <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
         <button id="btn-send" class="send-btn" title="送信">送信</button>
@@ -197,14 +194,14 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260914-0825"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").then((reg) => {
-          console.log("PWA ServiceWorker registered:", reg.scope);
+        navigator.serviceWorker.register("./sw.js?v=20260914-0825").then((reg) => {
+          reg.update();
         }).catch((err) => {
-          console.log("PWA ServiceWorker registration failed:", err);
+          console.warn("SW reg error:", err);
         });
       });
     }
