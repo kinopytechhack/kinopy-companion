@@ -127,6 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderMemos();
   setupEventListeners();
   fetchKumapyTasks();
+  initPullToRefresh();
   
   // 定期バックグラウンド自動同期 (20秒ごと)
   setInterval(fetchKumapyTasks, 30 * 1000);
@@ -153,6 +154,88 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   unlockEvents.forEach(evt => document.addEventListener(evt, unlocker, { passive: true }));
 });
+
+// ==========================================
+// Pull-to-Refresh（下に引っ張って更新）
+// ==========================================
+function initPullToRefresh() {
+  const ptrEl = document.getElementById("pull-to-refresh");
+  const ptrIcon = ptrEl?.querySelector(".ptr-icon");
+  const ptrText = ptrEl?.querySelector(".ptr-text");
+  const container = elements.chatTimeline;
+  if (!ptrEl || !container) return;
+
+  let startY = 0;
+  let currentY = 0;
+  let isPulling = false;
+  const PULL_THRESHOLD = 65;
+
+  container.addEventListener("touchstart", (e) => {
+    if (container.scrollTop <= 2) {
+      startY = e.touches[0].pageY;
+      isPulling = true;
+    } else {
+      isPulling = false;
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchmove", (e) => {
+    if (!isPulling) return;
+    currentY = e.touches[0].pageY;
+    const diff = currentY - startY;
+
+    if (diff > 5 && container.scrollTop <= 2) {
+      const translateY = Math.min(diff * 0.45, 60);
+      ptrEl.style.transform = `translateY(${translateY}px)`;
+      ptrEl.classList.add("visible");
+      
+      if (translateY >= PULL_THRESHOLD * 0.45) {
+        if (ptrText) ptrText.textContent = "離して更新";
+        if (ptrIcon) ptrIcon.style.transform = "rotate(180deg)";
+      } else {
+        if (ptrText) ptrText.textContent = "下に引っ張って更新";
+        if (ptrIcon) ptrIcon.style.transform = "rotate(0deg)";
+      }
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchend", async () => {
+    if (!isPulling) return;
+    isPulling = false;
+    const diff = currentY - startY;
+
+    if (diff * 0.45 >= PULL_THRESHOLD * 0.45 && container.scrollTop <= 5) {
+      ptrEl.classList.add("refreshing");
+      if (ptrText) ptrText.textContent = "更新中...";
+      ptrEl.style.transform = "translateY(48px)";
+
+      try {
+        await Promise.all([syncFromCloud(), fetchKumapyTasks()]);
+        if (ptrText) ptrText.textContent = "最新の状態です！";
+        if (ptrIcon) ptrIcon.textContent = "✨";
+      } catch (err) {
+        if (ptrText) ptrText.textContent = "更新完了";
+      }
+
+      setTimeout(() => {
+        ptrEl.style.transform = "translateY(-100%)";
+        ptrEl.classList.remove("visible", "refreshing");
+        setTimeout(() => {
+          if (ptrIcon) {
+            ptrIcon.textContent = "🔄";
+            ptrIcon.style.transform = "rotate(0deg)";
+          }
+          if (ptrText) ptrText.textContent = "下に引っ張って更新";
+        }, 300);
+      }, 700);
+    } else {
+      ptrEl.style.transform = "translateY(-100%)";
+      ptrEl.classList.remove("visible");
+    }
+    startY = 0;
+    currentY = 0;
+  });
+}
 
 // iOS Safari オーディオアンロック
 function unlockAudioContext() {

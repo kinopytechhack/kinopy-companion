@@ -55,6 +55,12 @@
 
     <!-- 4. LINE風チャットタイムライン (Mac版完全同一) -->
     <main class="chat-thread-container" id="chat-container">
+      <div id="pull-to-refresh" class="pull-to-refresh">
+        <div class="ptr-content">
+          <span class="ptr-icon">🔄</span>
+          <span class="ptr-text">下に引っ張って更新</span>
+        </div>
+      </div>
       <div class="chat-timeline" id="chat-timeline">
         <!-- 過去ログ読み込みボタン & メッセージが動的に挿入されます -->
       </div>
@@ -200,6 +206,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260914-1142"></script>
+  <script src="app.js?v=20260914-1144"></script>
 </body>
 </html>
