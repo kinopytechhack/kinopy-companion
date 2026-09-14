@@ -14,7 +14,7 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbxsYGMKyLV5pLUbmx43r4mIoCQYyw-WAma_jDbxBQKg--m7-GlAau-VcIHzIOXUwmzccQ/exec";
+const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbx1r5oDHbGNvyLq6TYRoR5bv1rq4fCByNR77Pgfxa623uveiHh9IIiqCkhbIEgMGOMWuA/exec";
 
 // 状態管理
 const state = {
@@ -1516,18 +1516,55 @@ async function syncFromCloud() {
   const todayYmd = getTodayYmd();
   console.log("☁️ Syncing with GAS cloud...", state.syncGasUrl);
 
-  // 1. クラウド設定の取得 (APIキー等がクラウド側にあれば自動適用)
+  // 1. クラウド設定の取得 (APIキー・声の設定等がクラウド側にあれば自動適用)
   try {
     const res = await fetch(`${state.syncGasUrl}?action=getSettings`);
     const data = await res.json();
     if (data && data.success && data.settings) {
       const s = data.settings;
       let needUpdateUI = false;
-      if (s.geminiApiKey && !state.geminiApiKey) {
+
+      // Gemini API Key
+      if (s.geminiApiKey && s.geminiApiKey !== state.geminiApiKey) {
         state.geminiApiKey = s.geminiApiKey;
         localStorage.setItem("gemini_api_key", s.geminiApiKey);
         needUpdateUI = true;
       }
+      if (typeof s.geminiEnabled === "boolean" && s.geminiEnabled !== state.geminiEnabled) {
+        state.geminiEnabled = s.geminiEnabled;
+        localStorage.setItem("gemini_enabled", s.geminiEnabled.toString());
+        needUpdateUI = true;
+      }
+
+      // 声の設定同期 (VOICEVOX スピーカー / 高さ / 速度 / ON/OFF)
+      if (s.voiceSpeaker && s.voiceSpeaker !== state.voiceSpeaker) {
+        state.voiceSpeaker = s.voiceSpeaker;
+        localStorage.setItem("voice_speaker", s.voiceSpeaker);
+        needUpdateUI = true;
+      }
+      if (typeof s.voicePitch === "number" && s.voicePitch !== state.voicePitch) {
+        state.voicePitch = s.voicePitch;
+        localStorage.setItem("voice_pitch", s.voicePitch.toString());
+        needUpdateUI = true;
+      }
+      if (typeof s.voiceRate === "number" && s.voiceRate !== state.voiceRate) {
+        state.voiceRate = s.voiceRate;
+        localStorage.setItem("voice_rate", s.voiceRate.toString());
+        needUpdateUI = true;
+      }
+      if (typeof s.voiceEnabled === "boolean" && s.voiceEnabled !== state.voiceEnabled) {
+        state.voiceEnabled = s.voiceEnabled;
+        localStorage.setItem("voice_enabled", s.voiceEnabled.toString());
+        needUpdateUI = true;
+      }
+
+      // Kumapy
+      if (s.kumapyUrl && s.kumapyUrl !== state.kumapyUrl) {
+        state.kumapyUrl = s.kumapyUrl;
+        localStorage.setItem("kumapy_url", s.kumapyUrl);
+        needUpdateUI = true;
+      }
+
       if (needUpdateUI) {
         loadSettingsToUI();
         updateBadgeState();
