@@ -825,7 +825,8 @@ function initChatTimeline() {
       state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
     });
   } else {
-    addMessageBubble("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！", null, true);
+    // クラウドから取得するまでのプレースホルダー（localStorageには保存しない）
+    elements.chatTimeline.appendChild(createMessageBubbleElement("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！", new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })));
   }
 
   updateLoadPrevButton();
@@ -1513,7 +1514,7 @@ function saveSettings(showBubble = true) {
 // ==========================================
 
 /**
- * 起動時にクラウド（GAS）から設定・ログ・メモを同期取得
+ * 起動時および更新時にクラウド（GAS）から設定・ログ・メモを同期取得
  */
 async function syncFromCloud() {
   if (!state.syncGasUrl) return;
@@ -1578,28 +1579,35 @@ async function syncFromCloud() {
     console.warn("Cloud settings sync skipped/failed:", err);
   }
 
-  // 2. 本日の会話ログの取得＆マージ
+  // 2. 本日の会話ログの同期取得＆マージ
   try {
     const res = await fetch(`${state.syncGasUrl}?action=getLogs&date=${todayYmd}`);
     const data = await res.json();
-    if (data && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+    if (data && data.success && Array.isArray(data.messages)) {
+      const cloudMessages = data.messages;
       const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
-      if (data.messages.length > localLogs.length) {
-        // クラウド側が最新・またはMacでの発言が含まれている場合はタイムライン再描画
-        console.log(`☁️ Synced ${data.messages.length} messages from cloud.`);
-        localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(data.messages));
+
+      if (cloudMessages.length > 0) {
+        // クラウドのログを正本としてlocalStorageを更新
+        localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
         
-        // タイムラインを再描画
+        // 画面のタイムラインをクラウドの最新履歴で再描画
         elements.chatTimeline.innerHTML = "";
         if (loadPrevContainerEl) {
           elements.chatTimeline.appendChild(loadPrevContainerEl);
         }
         elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
+        
         state.conversationHistory = [];
-        data.messages.forEach(msg => {
+        cloudMessages.forEach(msg => {
           elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
           state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
         });
+
+        if (state.conversationHistory.length > 20) {
+          state.conversationHistory = state.conversationHistory.slice(-20);
+        }
+
         updateLoadPrevButton();
         scrollToBottom();
       }
@@ -1635,91 +1643,70 @@ async function syncFromCloud() {
 }
 
 /**
- * 会話メッセージをGAS経由でVault（Google Drive）へ追記
+ * 会話メッセージをGAS経由でVault（Google Drive）へ追記（GETリクエストで確実に送信）
  */
 function syncAppendLogToGas(role, text, timeStr) {
   if (!state.syncGasUrl || !text) return;
   const todayYmd = getTodayYmd();
-  const speaker = role === "user" ? "きのぴィ" : "相棒 (雀松朱司)";
+  const speaker = role === "user" ? "きのぴぃ" : "相棒 (雀松朱司)";
 
-  const payload = {
+  const params = new URLSearchParams({
     action: "appendLog",
     date: todayYmd,
     role: role,
     speaker: speaker,
     text: text,
     time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  };
+  });
 
   try {
-    // simple POST (text/plain + mode: no-cors で確実にGASへ届ける)
-    fetch(state.syncGasUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload)
-    }).catch(err => {
-      console.warn("syncAppendLogToGas POST error, trying GET fallback:", err);
-      // GETフォールバック
-      const params = new URLSearchParams(payload);
-      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
-    });
+    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
+      .then(() => {
+        console.log("☁️ Log appended to cloud via GAS");
+      })
+      .catch(err => {
+        console.warn("syncAppendLogToGas error:", err);
+      });
   } catch (e) {
     console.warn("syncAppendLogToGas exception:", e);
   }
 }
 
 /**
- * メモをGAS経由でVaultへ保存
+ * メモをGAS経由でVaultへ保存（GETリクエスト）
  */
 function syncSaveMemoToGas(memoText, timeStr) {
   if (!state.syncGasUrl || !memoText) return;
   const todayYmd = getTodayYmd();
-  const payload = {
+  const params = new URLSearchParams({
     action: "saveMemo",
     date: todayYmd,
     text: memoText,
     time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  };
+  });
 
   try {
-    fetch(state.syncGasUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload)
-    }).catch(err => {
-      const params = new URLSearchParams(payload);
-      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
-    });
+    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
+      .catch(err => console.warn("syncSaveMemoToGas error:", err));
   } catch (e) {
     console.warn("syncSaveMemoToGas error:", e);
   }
 }
 
 /**
- * 設定をGAS経由でクラウド保存
+ * 設定をGAS経由でクラウド保存（GETリクエスト）
  */
 function syncSaveSettingsToGas(settingsObj) {
   if (!state.syncGasUrl || !settingsObj) return;
-  const payload = {
+  const params = new URLSearchParams({
     action: "saveSettings",
-    settings: settingsObj
-  };
+    settings: JSON.stringify(settingsObj)
+  });
 
   try {
-    fetch(state.syncGasUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload)
-    }).catch(err => {
-      const params = new URLSearchParams({
-        action: "saveSettings",
-        settings: JSON.stringify(settingsObj)
-      });
-      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
-    });
+    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
+      .then(() => console.log("☁️ Settings saved to cloud via GAS"))
+      .catch(err => console.warn("syncSaveSettingsToGas error:", err));
   } catch (e) {
     console.warn("syncSaveSettingsToGas error:", e);
   }
