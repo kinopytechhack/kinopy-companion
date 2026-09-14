@@ -1,5 +1,5 @@
 // ==========================================================================
-// Kinopy Companion PWA - Main Logic (Full Desktop Feature Parity)
+// Kinopy Companion PWA - Main Logic (iOS Audio & Cloud Sync Optimized)
 // ==========================================================================
 
 const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ（親友 × 執事）です。
@@ -14,11 +14,12 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-// 状態管理 (Mac版キー名と完全互換)
+// 状態管理
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
   kumapyUrl: localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU",
+  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || "", // クラウド同期用GAS URL
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
@@ -44,7 +45,7 @@ const state = {
   sharedAudio: new Audio()
 };
 
-// 録音用
+// 録音
 let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
@@ -120,30 +121,38 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchKumapyTasks();
   setInterval(fetchKumapyTasks, 30 * 1000);
 
-  // iOS オーディオアンロック
-  document.addEventListener("touchstart", unlockAudioContext, { once: true });
-  document.addEventListener("click", unlockAudioContext, { once: true });
+  // iOS オーディオアンロック (タップ・タッチ時に確実に準備)
+  const unlockEvents = ["touchstart", "touchend", "click", "keydown"];
+  const unlocker = () => {
+    unlockAudioContext();
+  };
+  unlockEvents.forEach(evt => document.addEventListener(evt, unlocker, { passive: true }));
 });
 
+// iOS Safari オーディオアンロック
 function unlockAudioContext() {
   if (state.audioUnlocked) return;
   state.audioUnlocked = true;
+
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === "suspended") {
       ctx.resume();
     }
-    // 空の無音再生でAudio要素をアクティブ化
+    // 空の無音WAVを再生してHTMLMediaElementを完全アンロック
     state.sharedAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-    state.sharedAudio.play().catch(() => {});
-    
+    state.sharedAudio.play().then(() => {
+      state.sharedAudio.pause();
+    }).catch(() => {});
+
+    // iOS SpeechSynthesisのアンロック
     if ("speechSynthesis" in window) {
-      const silent = new SpeechSynthesisUtterance("");
-      silent.volume = 0;
+      const silent = new SpeechSynthesisUtterance(" ");
+      silent.volume = 0.01;
       window.speechSynthesis.speak(silent);
     }
   } catch (e) {
-    console.warn("Audio unlock failed:", e);
+    console.warn("Audio unlock warning:", e);
   }
 }
 
@@ -221,17 +230,27 @@ function updateBadgeState() {
 // イベントリスナー設定
 // ==========================================
 function setupEventListeners() {
-  // 送信
-  elements.btnSend.addEventListener("click", handleUserSend);
+  // 送信（クリック）
+  elements.btnSend.addEventListener("click", () => {
+    unlockAudioContext();
+    handleUserSend();
+  });
+
+  // テキスト入力のEnterキー送信（IME変換中を正しく除外＆確実にクリア）
   elements.userInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
+      if (e.isComposing) return; // IME確定中は送信しない
       e.preventDefault();
+      unlockAudioContext();
       handleUserSend();
     }
   });
 
-  // 音声録音（トグル式マイク録音）
-  elements.btnVoiceInput.addEventListener("click", toggleVoiceRecording);
+  // 音声録音（トグル式マイク）
+  elements.btnVoiceInput.addEventListener("click", () => {
+    unlockAudioContext();
+    toggleVoiceRecording();
+  });
 
   // 設定パネル
   elements.btnSettingsToggle.addEventListener("click", () => {
@@ -244,17 +263,15 @@ function setupEventListeners() {
   });
   elements.btnSaveSettings.addEventListener("click", () => saveSettings(true));
 
-  // APIキーの自動保存（blur / input時）
-  elements.geminiApiKey.addEventListener("input", (e) => {
+  // APIキーのリアルタイム自動保存
+  const syncApiKey = (e) => {
     state.geminiApiKey = e.target.value.trim();
     localStorage.setItem("gemini_api_key", state.geminiApiKey);
     updateBadgeState();
-  });
-  elements.geminiApiKey.addEventListener("change", (e) => {
-    state.geminiApiKey = e.target.value.trim();
-    localStorage.setItem("gemini_api_key", state.geminiApiKey);
-    updateBadgeState();
-  });
+  };
+  elements.geminiApiKey.addEventListener("input", syncApiKey);
+  elements.geminiApiKey.addEventListener("change", syncApiKey);
+  elements.geminiApiKey.addEventListener("blur", syncApiKey);
 
   // クイックバッジ切り替え
   elements.aiModeBadge.addEventListener("click", () => {
@@ -313,6 +330,7 @@ function setupEventListeners() {
   // クイックアクションボタン
   document.querySelectorAll(".quick-actions-left .quick-icon-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      unlockAudioContext();
       const action = btn.dataset.action;
       handleQuickAction(action);
     });
@@ -320,6 +338,7 @@ function setupEventListeners() {
 
   // ヘッダーアバタータップ
   elements.headerAvatarBtn.addEventListener("click", () => {
+    unlockAudioContext();
     const greetings = [
       "サウナハット被っていつでもスタンバイOKだよ！",
       "無理しすぎないで、たまにはサウナで汗流してリフレッシュしよ！",
@@ -336,7 +355,7 @@ function setupEventListeners() {
 }
 
 // ==========================================
-// 音声録音 ＆ Gemini マルチモーダル解析 (Mac版完全同一)
+// 音声録音 ＆ iOS対応
 // ==========================================
 async function toggleVoiceRecording() {
   unlockAudioContext();
@@ -357,9 +376,18 @@ async function startVoiceRecording() {
     elements.listeningIndicator.classList.remove("hidden");
 
     audioChunks = [];
-    const mimeType = MediaRecorder.isTypeSupported("audio/webm") 
-      ? "audio/webm" 
-      : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+
+    // iOS WebKit / Chrome / Safari 対応のMIME判定
+    let mimeType = "";
+    if (typeof MediaRecorder !== "undefined") {
+      if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        mimeType = "audio/mp4";
+      } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+        mimeType = "audio/webm";
+      } else if (MediaRecorder.isTypeSupported("audio/aac")) {
+        mimeType = "audio/aac";
+      }
+    }
 
     const options = mimeType ? { mimeType } : {};
     mediaRecorder = new MediaRecorder(audioStream, options);
@@ -381,7 +409,7 @@ async function startVoiceRecording() {
       }
 
       if (audioChunks.length === 0) return;
-      const actualType = mimeType || "audio/wav";
+      const actualType = mimeType || "audio/mp4";
       const audioBlob = new Blob(audioChunks, { type: actualType });
       await processRecordedAudio(audioBlob, actualType);
     };
@@ -393,7 +421,53 @@ async function startVoiceRecording() {
     state.isRecording = false;
     elements.btnVoiceInput.classList.remove("recording");
     elements.listeningIndicator.classList.add("hidden");
-    alert("マイクの使用が許可されていません。iPhoneの「設定 > Safari > マイク」をご確認ください。");
+
+    // Web Speech API フォールバック試行
+    tryWebSpeechRecognition();
+  }
+}
+
+function tryWebSpeechRecognition() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    alert("マイクが利用できません。iPhoneの「設定 > Safari > マイク」をご確認ください。");
+    return;
+  }
+
+  const rec = new SpeechRec();
+  rec.lang = "ja-JP";
+  rec.interimResults = false;
+  rec.continuous = false;
+
+  rec.onstart = () => {
+    state.isRecording = true;
+    elements.btnVoiceInput.classList.add("recording");
+    elements.listeningIndicator.classList.remove("hidden");
+  };
+
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    elements.userInput.value = text;
+    handleUserSend();
+  };
+
+  rec.onerror = (e) => {
+    console.warn("SpeechRec error:", e);
+    state.isRecording = false;
+    elements.btnVoiceInput.classList.remove("recording");
+    elements.listeningIndicator.classList.add("hidden");
+  };
+
+  rec.onend = () => {
+    state.isRecording = false;
+    elements.btnVoiceInput.classList.remove("recording");
+    elements.listeningIndicator.classList.add("hidden");
+  };
+
+  try {
+    rec.start();
+  } catch (e) {
+    console.warn("Rec start error:", e);
   }
 }
 
@@ -415,7 +489,6 @@ async function processRecordedAudio(audioBlob, mimeType) {
   elements.aiStatusIndicator.textContent = "✨ 音声を解析中...";
   elements.aiStatusIndicator.classList.remove("hidden");
 
-  // Gemini API Key がある場合はマルチモーダルで高精度文字起こし＆回答
   if (state.geminiApiKey && state.geminiEnabled) {
     try {
       const reader = new FileReader();
@@ -488,7 +561,7 @@ async function processRecordedAudio(audioBlob, mimeType) {
         } catch (e) {
           console.error("Audio Gemini parse error:", e);
           elements.aiStatusIndicator.classList.add("hidden");
-          const fallback = "ごめんね、うまく聞き取れなかったみたい。もう一度話しかけてね！";
+          const fallback = "うまく聞き取れなかったみたい。もう一度話しかけてね！";
           addMessageBubble("bot", fallback, null, true);
           speak(fallback);
         }
@@ -506,7 +579,7 @@ async function processRecordedAudio(audioBlob, mimeType) {
 }
 
 // ==========================================
-// 音声合成 (VOICEVOX Web API & iOS Web Speech 最適化)
+// 音声合成 (VOICEVOX ＆ iOS Web Speech 最適化)
 // ==========================================
 async function speak(text) {
   if (!state.voiceEnabled) return;
@@ -602,7 +675,7 @@ function speakWithWebSpeech(text) {
 }
 
 // ==========================================
-// チャット検索機能 (Mac版完全同一)
+// チャット検索機能
 // ==========================================
 function initChatSearchEvents() {
   elements.chatSearchInput.addEventListener("input", (e) => {
@@ -940,8 +1013,10 @@ async function handleUserSend() {
   const text = elements.userInput.value.trim();
   if (!text) return;
 
-  unlockAudioContext();
+  // 入力欄を完全にクリア
   elements.userInput.value = "";
+  elements.userInput.style.height = "auto";
+
   addMessageBubble("user", text, null, true);
 
   if (handleSpecialCommands(text)) {
@@ -1058,7 +1133,6 @@ function handleSpecialCommands(text) {
 }
 
 function handleQuickAction(action) {
-  unlockAudioContext();
   if (action === "memo") {
     elements.userInput.value = "メモ: ";
     elements.userInput.focus();
@@ -1209,7 +1283,7 @@ function createMemoItemDOM(memo) {
 }
 
 // ==========================================
-// Kumapy スプレッドシート連携 (Mac版完全同一)
+// Kumapy スプレッドシート連携
 // ==========================================
 function parseCsv(csvText) {
   const rows = [];
@@ -1373,7 +1447,7 @@ async function fetchKumapyTasks() {
 }
 
 // ==========================================
-// 設定保存 (自動保存 ＆ 手動保存)
+// 設定保存
 // ==========================================
 function saveSettings(showBubble = true) {
   state.geminiEnabled = elements.geminiApiToggle.checked;
