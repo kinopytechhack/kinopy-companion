@@ -1389,7 +1389,9 @@ async function handleQuickAction(action) {
     elements.userInput.placeholder = "📝 保存したいメモを入力して送信...";
     elements.userInput.value = "";
     elements.userInput.focus();
-    speak("保存したい内容を教えてください");
+    const promptMsg = "保存したい内容を教えてください";
+    addMessageBubble("bot", promptMsg, null, true);
+    speak(promptMsg);
     return;
   }
 
@@ -1445,7 +1447,9 @@ async function handleQuickAction(action) {
 
       if (res.ok) {
         const data = await res.json();
-        reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.find(p => !p.thought && p.text) || parts[parts.length - 1];
+        reply = textPart?.text?.trim() || "";
         if (data?.usageMetadata?.totalTokenCount) {
           recordTokenUsage(data.usageMetadata.totalTokenCount);
         }
