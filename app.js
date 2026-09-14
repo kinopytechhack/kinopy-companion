@@ -1341,23 +1341,115 @@ function handleSpecialCommands(text) {
   return false;
 }
 
-function handleQuickAction(action) {
+// Quick Action Prompts & Fallbacks (親友 × 執事トーン、きのぴぃ呼び)
+const quickPrompts = {
+  coach: {
+    label: "💡 モヤモヤする…",
+    prompt: "ユーザー（きのぴぃ）が仕事や日常で「モヤモヤしている・相談したい」と言っています。親身に受け止めつつ、思考をほぐす客観的な問いかけを1〜2文（60文字以内）で優しく返してください。「きのぴぃ」と呼びかけてください。",
+    fallback: [
+      "何でも話してください、きのぴぃ。今、何が一番引っかかってますか？",
+      "モヤモヤ吐き出しちゃいましょう。ぶっちゃけ何が一番めんどくさいですか？",
+      "焦らなくて大丈夫ですよ。今できる最小の1歩を一緒に探しましょうか。"
+    ]
+  },
+  snack: {
+    label: "🍪 おなか減った！",
+    prompt: "ユーザー（きのぴぃ）が「おなか減った・おやつ食べたい」と言っています。決して頭ごなしに怒るのではなく、「ちょっと待ってください！」と親友としてユーモア交じりにブレーキをかけ、常温の水や素焼きナッツ、高カカオチョコなどのヘルシーな代替案を優しく提案するセリフを1〜2文（60文字以内）で出力してください。「きのぴぃ」と呼びかけてください。",
+    fallback: [
+      "ちょっと待ってください、きのぴぃ！ その時間に甘いものは暴挙です。まず常温の水を一杯飲みましょう！",
+      "おなか減りましたね！ 素焼きナッツか高カカオチョコなら罪悪感ゼロでOKですよ！",
+      "温かいお茶を一杯淹れませんか？ お腹が落ち着きますよ、きのぴぃ。"
+    ]
+  },
+  tired: {
+    label: "🛌 もう無理…",
+    prompt: "ユーザー（きのぴぃ）が「もう無理・力尽きた」と言っています。サボりではなく「戦略的HP回復」として前向きに全肯定し、15分タイマーでリフレッシュするよう促すセリフを1〜2文（60文字以内）で出力してください。「きのぴぃ」と呼びかけてください。",
+    fallback: [
+      "無理は禁物ですよ、きのぴぃ。サボりではなく戦略的HP回復です。15分タイマーをかけますね！",
+      "限界までよく走りました！ 15分間、何も考えずにゴロンとしちゃいましょう。",
+      "一旦ピットインです！ 目を閉じて、ゆっくり深呼吸してくださいね。"
+    ]
+  }
+};
+
+async function handleQuickAction(action) {
   if (action === "memo") {
     elements.userInput.value = "メモ: ";
     elements.userInput.focus();
-  } else if (action === "coach") {
-    setAvatarCut("worried", 5000);
-    elements.userInput.value = "今ちょっとタスクでモヤモヤしてるんだけど相談乗って";
-    handleUserSend();
-  } else if (action === "snack") {
+    speak("保存したい内容を教えてください");
+    return;
+  }
+
+  const item = quickPrompts[action];
+  if (!item) return;
+
+  if (action === "snack") {
     setAvatarCut("snack", 6000);
-    elements.userInput.value = "おなかすいた！何か軽食かおやつ食べようかな";
-    handleUserSend();
   } else if (action === "tired") {
     setAvatarCut("sleepy", 8000);
-    elements.userInput.value = "もう無理！疲れちゃった...";
-    handleUserSend();
+    startTimer(15);
+  } else if (action === "coach") {
+    setAvatarCut("worried", 5000);
   }
+
+  addMessageBubble("user", item.label, null, true);
+
+  // 自然な会話の間
+  await new Promise(r => setTimeout(r, 350));
+
+  let reply = "";
+  if (state.geminiEnabled && state.geminiApiKey) {
+    try {
+      elements.aiStatusIndicator.textContent = "✨ Gemini 思考中...";
+      elements.aiStatusIndicator.classList.remove("hidden");
+
+      const contents = state.conversationHistory.map((m) => ({
+        role: m.role,
+        parts: [{ text: m.text }]
+      }));
+      if (contents.length > 0 && contents[contents.length - 1].role === "user") {
+        contents[contents.length - 1].parts[0].text = item.prompt;
+      }
+
+      const payload = {
+        system_instruction: { parts: [{ text: DEFAULT_SYSTEM_PROMPT }] },
+        contents: contents,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
+      };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      elements.aiStatusIndicator.classList.add("hidden");
+
+      if (res.ok) {
+        const data = await res.json();
+        reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+        if (data?.usageMetadata?.totalTokenCount) {
+          recordTokenUsage(data.usageMetadata.totalTokenCount);
+        }
+      }
+    } catch (apiErr) {
+      elements.aiStatusIndicator.classList.add("hidden");
+      console.warn("Gemini API error on quick action:", apiErr);
+    }
+  }
+
+  if (!reply) {
+    const candidates = item.fallback;
+    reply = candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  addMessageBubble("bot", reply, null, true);
+  speak(reply);
 }
 
 // ==========================================
