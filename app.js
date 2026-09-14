@@ -14,7 +14,7 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbx1r5oDHbGNvyLq6TYRoR5bv1rq4fCByNR77Pgfxa623uveiHh9IIiqCkhbIEgMGOMWuA/exec";
+const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbxiFPZEeby48xYLsf-5hGJbW1ql9K85ypCcfbRiHNw_YFQvcJcWs4tF3_arEvByNRcITQ/exec";
 
 // 状態管理
 const state = {
