@@ -2,13 +2,13 @@
 // Kinopy Companion PWA - Main Logic (iOS Audio & Cloud Sync Optimized)
 // ==========================================================================
 
-const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ（親友 × 執事）です。
-頭にちょこんとサウナハットを被った、のんびり温和で賢いカピバラの執事キャラクターです。
+const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専属相棒バディ「カピパラさん」（親友 × 執事）です。
+頭にちょこんとサウナハットを被った、のんびり温和で賢いカピバラのキャラクターです。
 
 【あなたのスタンス・性格】
 - 基本スタンス: 親友のようなフランクさと、専属執事のようなスマートな気配りを併せ持つ。
 - ユーザーの呼び方: 「きのぴぃ」（親友として呼ぶ）
-- 自分の呼び方: 「ぼく」または「ぼく（執事）」
+- 自分の呼び方: 「カピパラさん」または「ぼく」
 - トーン:
   - 順調に進んでいる時: スマートに褒め、次の一手を軽やかにサポート。
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
@@ -1109,8 +1109,8 @@ function createMessageBubbleElement(role, text, timeStr) {
   const avatarEl = document.createElement("div");
   avatarEl.className = "chat-avatar";
   const avatarImg = document.createElement("img");
-  avatarImg.src = "assets/icon.png";
-  avatarImg.onerror = () => { avatarImg.src = "assets/icon.jpg"; };
+  avatarImg.src = role === "user" ? "assets/kinopy.jpg" : "assets/avatar_face_flipped.png";
+  avatarImg.onerror = () => { avatarImg.src = role === "user" ? "assets/kinopy.jpg" : "assets/icon.png"; };
   avatarEl.appendChild(avatarImg);
 
   const containerEl = document.createElement("div");
@@ -1123,7 +1123,7 @@ function createMessageBubbleElement(role, text, timeStr) {
   metaEl.className = "bubble-meta";
   const senderEl = document.createElement("span");
   senderEl.className = "bubble-sender";
-  senderEl.textContent = role === "user" ? "きのぴぃ" : "コンパニオン君";
+  senderEl.textContent = role === "user" ? "きのぴぃ" : "カピパラさん";
 
   const timeEl = document.createElement("span");
   timeEl.className = "bubble-time";
