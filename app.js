@@ -1226,6 +1226,17 @@ async function handleUserSend() {
   elements.userInput.value = "";
   elements.userInput.style.height = "auto";
 
+  // メモ保存待機モードのハンドリング
+  if (state.waitingForMemo) {
+    state.waitingForMemo = false;
+    elements.userInput.placeholder = "メッセージを入力...";
+    addMessageBubble("user", text, null, true);
+    await new Promise(r => setTimeout(r, 200));
+    addMemo(text);
+    speak("メモを保存しました！");
+    return;
+  }
+
   addMessageBubble("user", text, null, true);
 
   if (handleSpecialCommands(text)) {
@@ -1374,7 +1385,9 @@ const quickPrompts = {
 
 async function handleQuickAction(action) {
   if (action === "memo") {
-    elements.userInput.value = "メモ: ";
+    state.waitingForMemo = true;
+    elements.userInput.placeholder = "📝 保存したいメモを入力して送信...";
+    elements.userInput.value = "";
     elements.userInput.focus();
     speak("保存したい内容を教えてください");
     return;
