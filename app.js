@@ -1510,21 +1510,68 @@ function saveSettings(showBubble = true) {
 }
 
 // ==========================================
-// クラウド同期 (GAS / Google Drive)
+// クラウド同期 (GAS / Google Drive) - JSONP完全対応
 // ==========================================
 
 /**
- * 起動時および更新時にクラウド（GAS）から設定・ログ・メモを同期取得
+ * JSONP通信ヘルパー（iOS SafariのCORS・リダイレクト制限を完全回避）
+ */
+function fetchGasJsonp(action, paramsObj = {}) {
+  return new Promise((resolve, reject) => {
+    if (!state.syncGasUrl) {
+      return reject(new Error("No syncGasUrl"));
+    }
+
+    const callbackName = "gasCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    const params = new URLSearchParams(Object.assign({}, paramsObj, {
+      action: action,
+      callback: callbackName
+    }));
+
+    const url = `${state.syncGasUrl}?${params.toString()}`;
+    const script = document.createElement("script");
+    script.src = url;
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("JSONP request timeout"));
+    }, 12000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      if (window[callbackName]) {
+        delete window[callbackName];
+      }
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = function(err) {
+      cleanup();
+      reject(err);
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * 起動時および定期的にクラウド（GAS）から設定・ログ・メモを完全同期
  */
 async function syncFromCloud() {
   if (!state.syncGasUrl) return;
   const todayYmd = getTodayYmd();
-  console.log("☁️ Syncing with GAS cloud...", state.syncGasUrl);
+  console.log("☁️ Syncing with GAS cloud via JSONP...", state.syncGasUrl);
 
   // 1. クラウド設定の取得 (APIキー・声の設定等がクラウド側にあれば自動適用)
   try {
-    const res = await fetch(`${state.syncGasUrl}?action=getSettings`);
-    const data = await res.json();
+    const data = await fetchGasJsonp("getSettings");
     if (data && data.success && data.settings) {
       const s = data.settings;
       let needUpdateUI = false;
@@ -1576,19 +1623,15 @@ async function syncFromCloud() {
       }
     }
   } catch (err) {
-    console.warn("Cloud settings sync skipped/failed:", err);
+    console.warn("Cloud settings JSONP sync warning:", err);
   }
 
-  // 2. 本日の会話ログの同期取得＆マージ
+  // 2. 本日の会話ログの同期取得＆マージ（正本反映）
   try {
-    const res = await fetch(`${state.syncGasUrl}?action=getLogs&date=${todayYmd}`);
-    const data = await res.json();
+    const data = await fetchGasJsonp("getLogs", { date: todayYmd });
     if (data && data.success && Array.isArray(data.messages)) {
       const cloudMessages = data.messages;
-      const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
-
       if (cloudMessages.length > 0) {
-        // クラウドのログを正本としてlocalStorageを更新
         localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
         
         // 画面のタイムラインをクラウドの最新履歴で再描画
@@ -1613,13 +1656,12 @@ async function syncFromCloud() {
       }
     }
   } catch (err) {
-    console.warn("Cloud logs sync skipped/failed:", err);
+    console.warn("Cloud logs JSONP sync warning:", err);
   }
 
   // 3. メモの同期取得＆マージ
   try {
-    const res = await fetch(`${state.syncGasUrl}?action=getMemos&date=${todayYmd}`);
-    const data = await res.json();
+    const data = await fetchGasJsonp("getMemos", { date: todayYmd });
     if (data && data.success && Array.isArray(data.memos) && data.memos.length > 0) {
       let memoAdded = false;
       data.memos.forEach(cm => {
@@ -1638,76 +1680,54 @@ async function syncFromCloud() {
       }
     }
   } catch (err) {
-    console.warn("Cloud memos sync skipped/failed:", err);
+    console.warn("Cloud memos JSONP sync warning:", err);
   }
 }
 
 /**
- * 会話メッセージをGAS経由でVault（Google Drive）へ追記（GETリクエストで確実に送信）
+ * 会話メッセージをGAS経由でVault（Google Drive）へ追記（JSONP送信）
  */
 function syncAppendLogToGas(role, text, timeStr) {
   if (!state.syncGasUrl || !text) return;
   const todayYmd = getTodayYmd();
   const speaker = role === "user" ? "きのぴぃ" : "相棒 (雀松朱司)";
 
-  const params = new URLSearchParams({
-    action: "appendLog",
+  fetchGasJsonp("appendLog", {
     date: todayYmd,
     role: role,
     speaker: speaker,
     text: text,
     time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }).then(() => {
+    console.log("☁️ Log appended to cloud via JSONP");
+  }).catch(err => {
+    console.warn("syncAppendLogToGas JSONP warning:", err);
   });
-
-  try {
-    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
-      .then(() => {
-        console.log("☁️ Log appended to cloud via GAS");
-      })
-      .catch(err => {
-        console.warn("syncAppendLogToGas error:", err);
-      });
-  } catch (e) {
-    console.warn("syncAppendLogToGas exception:", e);
-  }
 }
 
 /**
- * メモをGAS経由でVaultへ保存（GETリクエスト）
+ * メモをGAS経由でVaultへ保存（JSONP送信）
  */
 function syncSaveMemoToGas(memoText, timeStr) {
   if (!state.syncGasUrl || !memoText) return;
   const todayYmd = getTodayYmd();
-  const params = new URLSearchParams({
-    action: "saveMemo",
+
+  fetchGasJsonp("saveMemo", {
     date: todayYmd,
     text: memoText,
     time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  });
-
-  try {
-    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
-      .catch(err => console.warn("syncSaveMemoToGas error:", err));
-  } catch (e) {
-    console.warn("syncSaveMemoToGas error:", e);
-  }
+  }).catch(err => console.warn("syncSaveMemoToGas JSONP warning:", err));
 }
 
 /**
- * 設定をGAS経由でクラウド保存（GETリクエスト）
+ * 設定をGAS経由でクラウド保存（JSONP送信）
  */
 function syncSaveSettingsToGas(settingsObj) {
   if (!state.syncGasUrl || !settingsObj) return;
-  const params = new URLSearchParams({
-    action: "saveSettings",
-    settings: JSON.stringify(settingsObj)
-  });
 
-  try {
-    fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" })
-      .then(() => console.log("☁️ Settings saved to cloud via GAS"))
-      .catch(err => console.warn("syncSaveSettingsToGas error:", err));
-  } catch (e) {
-    console.warn("syncSaveSettingsToGas error:", e);
-  }
+  fetchGasJsonp("saveSettings", {
+    settings: JSON.stringify(settingsObj)
+  }).then(() => {
+    console.log("☁️ Settings saved to cloud via JSONP");
+  }).catch(err => console.warn("syncSaveSettingsToGas JSONP warning:", err));
 }
