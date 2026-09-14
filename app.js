@@ -14,14 +14,18 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbxiFPZEeby48xYLsf-5hGJbW1ql9K85ypCcfbRiHNw_YFQvcJcWs4tF3_arEvByNRcITQ/exec";
+const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbwaT8iCLLVBU_IT65V3_fvrChkuvGIwgdRiEB_EJCcEmRHvH10kIabTHNV9arcJUKUa3g/exec";
 
 // 状態管理
+const savedSyncUrl = localStorage.getItem("companion_sync_gas_url");
+const syncGasUrl = (!savedSyncUrl || savedSyncUrl.includes("AKfycbx") || savedSyncUrl.includes("AKfycbz")) ? DEFAULT_SYNC_GAS_URL : savedSyncUrl;
+localStorage.setItem("companion_sync_gas_url", syncGasUrl);
+
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
   kumapyUrl: localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU",
-  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || DEFAULT_SYNC_GAS_URL, // クラウド同期用GAS URL
+  syncGasUrl: syncGasUrl, // クラウド同期用GAS URL
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
