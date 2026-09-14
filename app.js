@@ -14,12 +14,14 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
+const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbxsYGMKyLV5pLUbmx43r4mIoCQYyw-WAma_jDbxBQKg--m7-GlAau-VcIHzIOXUwmzccQ/exec";
+
 // 状態管理
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
   kumapyUrl: localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU",
-  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || "", // クラウド同期用GAS URL
+  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || DEFAULT_SYNC_GAS_URL, // クラウド同期用GAS URL
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
@@ -80,6 +82,8 @@ const elements = {
   geminiApiToggle: document.getElementById("gemini-api-toggle"),
   geminiApiKey: document.getElementById("gemini-api-key"),
   kumapyUrlInput: document.getElementById("kumapy-url"),
+  companionSyncUrlInput: document.getElementById("companion-sync-url"),
+  syncStatusBadge: document.getElementById("sync-status-badge"),
   voiceToggle: document.getElementById("voice-toggle"),
   voiceSpeaker: document.getElementById("voice-speaker"),
   voicePitch: document.getElementById("voice-pitch"),
@@ -120,6 +124,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setupEventListeners();
   fetchKumapyTasks();
   setInterval(fetchKumapyTasks, 30 * 1000);
+  
+  // クラウド同期（GAS経由）
+  syncFromCloud();
 
   // iOS オーディオアンロック (タップ・タッチ時に確実に準備)
   const unlockEvents = ["touchstart", "touchend", "click", "keydown"];
@@ -198,20 +205,22 @@ function loadSettingsToUI() {
   state.geminiApiKey = localStorage.getItem("gemini_api_key") || "";
   state.geminiEnabled = localStorage.getItem("gemini_enabled") !== "false";
   state.kumapyUrl = localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU";
+  state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || DEFAULT_SYNC_GAS_URL;
   state.voiceEnabled = localStorage.getItem("voice_enabled") !== "false";
   state.voiceSpeaker = localStorage.getItem("voice_speaker") || "11";
   state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
   state.voiceRate = parseFloat(localStorage.getItem("voice_rate") || "1.0");
 
-  elements.geminiApiToggle.checked = state.geminiEnabled;
-  elements.geminiApiKey.value = state.geminiApiKey;
-  elements.kumapyUrlInput.value = state.kumapyUrl;
-  elements.voiceToggle.checked = state.voiceEnabled;
-  elements.voiceSpeaker.value = state.voiceSpeaker;
-  elements.voicePitch.value = state.voicePitch;
-  elements.voiceRate.value = state.voiceRate;
-  elements.pitchVal.textContent = state.voicePitch.toFixed(1);
-  elements.rateVal.textContent = state.voiceRate.toFixed(1);
+  if (elements.geminiApiToggle) elements.geminiApiToggle.checked = state.geminiEnabled;
+  if (elements.geminiApiKey) elements.geminiApiKey.value = state.geminiApiKey;
+  if (elements.kumapyUrlInput) elements.kumapyUrlInput.value = state.kumapyUrl;
+  if (elements.companionSyncUrlInput) elements.companionSyncUrlInput.value = state.syncGasUrl;
+  if (elements.voiceToggle) elements.voiceToggle.checked = state.voiceEnabled;
+  if (elements.voiceSpeaker) elements.voiceSpeaker.value = state.voiceSpeaker;
+  if (elements.voicePitch) elements.voicePitch.value = state.voicePitch;
+  if (elements.voiceRate) elements.voiceRate.value = state.voiceRate;
+  if (elements.pitchVal) elements.pitchVal.textContent = state.voicePitch.toFixed(1);
+  if (elements.rateVal) elements.rateVal.textContent = state.voiceRate.toFixed(1);
   updateTokenDisplay();
 }
 
@@ -997,6 +1006,9 @@ function addMessageBubble(role, text, timeStr, shouldSave = true) {
     const logs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
     logs.push({ role, text, time: timeStr });
     localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(logs));
+
+    // GASクラウド (Google Drive / Vault) への非同期同期
+    syncAppendLogToGas(role, text, timeStr);
   }
 }
 
@@ -1214,6 +1226,9 @@ function addMemo(content) {
   };
   state.memos.unshift(memo);
   saveMemos();
+
+  // GASクラウド同期
+  syncSaveMemoToGas(content);
 }
 
 function saveMemos() {
@@ -1453,6 +1468,9 @@ function saveSettings(showBubble = true) {
   state.geminiEnabled = elements.geminiApiToggle.checked;
   state.geminiApiKey = elements.geminiApiKey.value.trim();
   state.kumapyUrl = elements.kumapyUrlInput.value.trim();
+  if (elements.companionSyncUrlInput) {
+    state.syncGasUrl = elements.companionSyncUrlInput.value.trim() || DEFAULT_SYNC_GAS_URL;
+  }
   state.voiceEnabled = elements.voiceToggle.checked;
   state.voiceSpeaker = elements.voiceSpeaker.value;
   state.voicePitch = parseFloat(elements.voicePitch.value);
@@ -1461,6 +1479,7 @@ function saveSettings(showBubble = true) {
   localStorage.setItem("gemini_enabled", state.geminiEnabled);
   localStorage.setItem("gemini_api_key", state.geminiApiKey);
   localStorage.setItem("kumapy_url", state.kumapyUrl);
+  localStorage.setItem("companion_sync_gas_url", state.syncGasUrl);
   localStorage.setItem("voice_enabled", state.voiceEnabled);
   localStorage.setItem("voice_speaker", state.voiceSpeaker);
   localStorage.setItem("voice_pitch", state.voicePitch);
@@ -1472,4 +1491,195 @@ function saveSettings(showBubble = true) {
     addMessageBubble("bot", "設定を保存したよ！ありがとう！", null, true);
   }
   fetchKumapyTasks();
+
+  // クラウドにも設定を同期
+  syncSaveSettingsToGas({
+    geminiApiKey: state.geminiApiKey,
+    geminiEnabled: state.geminiEnabled,
+    voiceEnabled: state.voiceEnabled,
+    voiceSpeaker: state.voiceSpeaker,
+    voicePitch: state.voicePitch,
+    voiceRate: state.voiceRate,
+    kumapyUrl: state.kumapyUrl
+  });
+}
+
+// ==========================================
+// クラウド同期 (GAS / Google Drive)
+// ==========================================
+
+/**
+ * 起動時にクラウド（GAS）から設定・ログ・メモを同期取得
+ */
+async function syncFromCloud() {
+  if (!state.syncGasUrl) return;
+  const todayYmd = getTodayYmd();
+  console.log("☁️ Syncing with GAS cloud...", state.syncGasUrl);
+
+  // 1. クラウド設定の取得 (APIキー等がクラウド側にあれば自動適用)
+  try {
+    const res = await fetch(`${state.syncGasUrl}?action=getSettings`);
+    const data = await res.json();
+    if (data && data.success && data.settings) {
+      const s = data.settings;
+      let needUpdateUI = false;
+      if (s.geminiApiKey && !state.geminiApiKey) {
+        state.geminiApiKey = s.geminiApiKey;
+        localStorage.setItem("gemini_api_key", s.geminiApiKey);
+        needUpdateUI = true;
+      }
+      if (needUpdateUI) {
+        loadSettingsToUI();
+        updateBadgeState();
+      }
+    }
+  } catch (err) {
+    console.warn("Cloud settings sync skipped/failed:", err);
+  }
+
+  // 2. 本日の会話ログの取得＆マージ
+  try {
+    const res = await fetch(`${state.syncGasUrl}?action=getLogs&date=${todayYmd}`);
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+      const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+      if (data.messages.length > localLogs.length) {
+        // クラウド側が最新・またはMacでの発言が含まれている場合はタイムライン再描画
+        console.log(`☁️ Synced ${data.messages.length} messages from cloud.`);
+        localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(data.messages));
+        
+        // タイムラインを再描画
+        elements.chatTimeline.innerHTML = "";
+        if (loadPrevContainerEl) {
+          elements.chatTimeline.appendChild(loadPrevContainerEl);
+        }
+        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
+        state.conversationHistory = [];
+        data.messages.forEach(msg => {
+          elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+          state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+        });
+        updateLoadPrevButton();
+        scrollToBottom();
+      }
+    }
+  } catch (err) {
+    console.warn("Cloud logs sync skipped/failed:", err);
+  }
+
+  // 3. メモの同期取得＆マージ
+  try {
+    const res = await fetch(`${state.syncGasUrl}?action=getMemos&date=${todayYmd}`);
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.memos) && data.memos.length > 0) {
+      let memoAdded = false;
+      data.memos.forEach(cm => {
+        if (!state.memos.some(m => m.text === cm.text)) {
+          state.memos.unshift({
+            id: cm.id || Date.now().toString(),
+            text: cm.text,
+            date: cm.dateTime || new Date().toLocaleDateString("ja-JP"),
+            archived: cm.checked
+          });
+          memoAdded = true;
+        }
+      });
+      if (memoAdded) {
+        saveMemos();
+      }
+    }
+  } catch (err) {
+    console.warn("Cloud memos sync skipped/failed:", err);
+  }
+}
+
+/**
+ * 会話メッセージをGAS経由でVault（Google Drive）へ追記
+ */
+function syncAppendLogToGas(role, text, timeStr) {
+  if (!state.syncGasUrl || !text) return;
+  const todayYmd = getTodayYmd();
+  const speaker = role === "user" ? "きのぴィ" : "相棒 (雀松朱司)";
+
+  const payload = {
+    action: "appendLog",
+    date: todayYmd,
+    role: role,
+    speaker: speaker,
+    text: text,
+    time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  };
+
+  try {
+    // simple POST (text/plain + mode: no-cors で確実にGASへ届ける)
+    fetch(state.syncGasUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload)
+    }).catch(err => {
+      console.warn("syncAppendLogToGas POST error, trying GET fallback:", err);
+      // GETフォールバック
+      const params = new URLSearchParams(payload);
+      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
+    });
+  } catch (e) {
+    console.warn("syncAppendLogToGas exception:", e);
+  }
+}
+
+/**
+ * メモをGAS経由でVaultへ保存
+ */
+function syncSaveMemoToGas(memoText, timeStr) {
+  if (!state.syncGasUrl || !memoText) return;
+  const todayYmd = getTodayYmd();
+  const payload = {
+    action: "saveMemo",
+    date: todayYmd,
+    text: memoText,
+    time: timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  };
+
+  try {
+    fetch(state.syncGasUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload)
+    }).catch(err => {
+      const params = new URLSearchParams(payload);
+      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
+    });
+  } catch (e) {
+    console.warn("syncSaveMemoToGas error:", e);
+  }
+}
+
+/**
+ * 設定をGAS経由でクラウド保存
+ */
+function syncSaveSettingsToGas(settingsObj) {
+  if (!state.syncGasUrl || !settingsObj) return;
+  const payload = {
+    action: "saveSettings",
+    settings: settingsObj
+  };
+
+  try {
+    fetch(state.syncGasUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload)
+    }).catch(err => {
+      const params = new URLSearchParams({
+        action: "saveSettings",
+        settings: JSON.stringify(settingsObj)
+      });
+      fetch(`${state.syncGasUrl}?${params.toString()}`, { mode: "no-cors" }).catch(() => {});
+    });
+  } catch (e) {
+    console.warn("syncSaveSettingsToGas error:", e);
+  }
 }

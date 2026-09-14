@@ -117,10 +117,16 @@
                 <span class="token-stats-val" id="total-tokens-val">0 tokens</span>
               </div>
             </div>
-          </div>
           <div class="form-group">
             <label for="kumapy-url">Kumapy スプレッドシート URL / ID</label>
             <input type="text" id="kumapy-url" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+          </div>
+          <div class="form-group">
+            <div class="form-label-row">
+              <label for="companion-sync-url">☁️ クラウド同期 (GAS Web App)</label>
+              <span id="sync-status-badge" style="font-size:11px; color:#2E7D32; font-weight:600;">● 同期有効</span>
+            </div>
+            <input type="text" id="companion-sync-url" placeholder="https://script.google.com/macros/s/.../exec">
           </div>
           <div class="form-group form-row-toggle">
             <label for="voice-toggle">音声読み上げ</label>
