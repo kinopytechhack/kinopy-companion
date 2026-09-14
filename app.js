@@ -1266,7 +1266,8 @@ async function callGeminiApi(userPrompt) {
     contents: contents,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 1000
+      maxOutputTokens: 1000,
+      thinkingConfig: { thinkingBudget: 50 }
     }
   };
 
@@ -1429,7 +1430,7 @@ async function handleQuickAction(action) {
       const payload = {
         system_instruction: { parts: [{ text: DEFAULT_SYSTEM_PROMPT }] },
         contents: contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 50 } }
       };
 
       const controller = new AbortController();
