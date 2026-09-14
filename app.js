@@ -758,6 +758,65 @@ async function speakWithVoicevox(text, speakerId) {
 
   if (!audioUrl) throw new Error("No audio URL");
 
+// 表情・カット制御 (7 Cuts Management)
+let currentCutOverride = null;
+let lipSyncTimer = null;
+
+function setAvatarCut(cutName, durationMs = 0) {
+  const avatarImg = document.getElementById("header-avatar-img");
+  if (!avatarImg) return;
+  const cutMap = {
+    normal: "assets/01_normal.png",
+    speaking: "assets/02_speaking.png",
+    happy: "assets/03_happy.png",
+    worried: "assets/04_worried.png",
+    snack: "assets/05_snack.png",
+    sleepy: "assets/06_sleepy.png",
+    wait: "assets/07_wait.png"
+  };
+  const src = cutMap[cutName] || "assets/01_normal.png";
+  avatarImg.src = src;
+
+  if (durationMs > 0) {
+    currentCutOverride = cutName;
+    setTimeout(() => {
+      if (currentCutOverride === cutName) {
+        currentCutOverride = null;
+        if (!state.isSpeaking) {
+          avatarImg.src = "assets/01_normal.png";
+        }
+      }
+    }, durationMs);
+  }
+}
+
+function startLipSync() {
+  stopLipSync();
+  const avatarImg = document.getElementById("header-avatar-img");
+  let open = false;
+  lipSyncTimer = setInterval(() => {
+    if (!state.isSpeaking) {
+      stopLipSync();
+      return;
+    }
+    open = !open;
+    if (avatarImg && !currentCutOverride) {
+      avatarImg.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+    }
+  }, 180);
+}
+
+function stopLipSync() {
+  if (lipSyncTimer) {
+    clearInterval(lipSyncTimer);
+    lipSyncTimer = null;
+  }
+  const avatarImg = document.getElementById("header-avatar-img");
+  if (avatarImg && !currentCutOverride) {
+    avatarImg.src = "assets/01_normal.png";
+  }
+}
+
   return new Promise((resolve, reject) => {
     state.sharedAudio.src = audioUrl;
     state.sharedAudio.playbackRate = state.voiceRate;
@@ -765,17 +824,20 @@ async function speakWithVoicevox(text, speakerId) {
     state.sharedAudio.onplay = () => {
       state.isSpeaking = true;
       elements.speakingIndicator.classList.remove("hidden");
+      startLipSync();
     };
 
     state.sharedAudio.onended = () => {
       state.isSpeaking = false;
       elements.speakingIndicator.classList.add("hidden");
+      stopLipSync();
       resolve();
     };
 
     state.sharedAudio.onerror = (e) => {
       state.isSpeaking = false;
       elements.speakingIndicator.classList.add("hidden");
+      stopLipSync();
       reject(e);
     };
 
@@ -799,16 +861,19 @@ function speakWithWebSpeech(text) {
   uttr.onstart = () => {
     state.isSpeaking = true;
     elements.speakingIndicator.classList.remove("hidden");
+    startLipSync();
   };
 
   uttr.onend = () => {
     state.isSpeaking = false;
     elements.speakingIndicator.classList.add("hidden");
+    stopLipSync();
   };
 
   uttr.onerror = () => {
     state.isSpeaking = false;
     elements.speakingIndicator.classList.add("hidden");
+    stopLipSync();
   };
 
   window.speechSynthesis.speak(uttr);
@@ -1281,12 +1346,15 @@ function handleQuickAction(action) {
     elements.userInput.value = "メモ: ";
     elements.userInput.focus();
   } else if (action === "coach") {
+    setAvatarCut("worried", 5000);
     elements.userInput.value = "今ちょっとタスクでモヤモヤしてるんだけど相談乗って";
     handleUserSend();
   } else if (action === "snack") {
+    setAvatarCut("snack", 6000);
     elements.userInput.value = "おなかすいた！何か軽食かおやつ食べようかな";
     handleUserSend();
   } else if (action === "tired") {
+    setAvatarCut("sleepy", 8000);
     elements.userInput.value = "もう無理！疲れちゃった...";
     handleUserSend();
   }
