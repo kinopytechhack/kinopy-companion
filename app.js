@@ -758,6 +758,34 @@ async function speakWithVoicevox(text, speakerId) {
 
   if (!audioUrl) throw new Error("No audio URL");
 
+  return new Promise((resolve, reject) => {
+    state.sharedAudio.src = audioUrl;
+    state.sharedAudio.playbackRate = state.voiceRate;
+
+    state.sharedAudio.onplay = () => {
+      state.isSpeaking = true;
+      elements.speakingIndicator.classList.remove("hidden");
+      startLipSync();
+    };
+
+    state.sharedAudio.onended = () => {
+      state.isSpeaking = false;
+      elements.speakingIndicator.classList.add("hidden");
+      stopLipSync();
+      resolve();
+    };
+
+    state.sharedAudio.onerror = (e) => {
+      state.isSpeaking = false;
+      elements.speakingIndicator.classList.add("hidden");
+      stopLipSync();
+      reject(e);
+    };
+
+    state.sharedAudio.play().catch(reject);
+  });
+}
+
 // 表情・カット制御 (7 Cuts Management)
 let currentCutOverride = null;
 let lipSyncTimer = null;
@@ -815,34 +843,6 @@ function stopLipSync() {
   if (avatarImg && !currentCutOverride) {
     avatarImg.src = "assets/01_normal.png";
   }
-}
-
-  return new Promise((resolve, reject) => {
-    state.sharedAudio.src = audioUrl;
-    state.sharedAudio.playbackRate = state.voiceRate;
-
-    state.sharedAudio.onplay = () => {
-      state.isSpeaking = true;
-      elements.speakingIndicator.classList.remove("hidden");
-      startLipSync();
-    };
-
-    state.sharedAudio.onended = () => {
-      state.isSpeaking = false;
-      elements.speakingIndicator.classList.add("hidden");
-      stopLipSync();
-      resolve();
-    };
-
-    state.sharedAudio.onerror = (e) => {
-      state.isSpeaking = false;
-      elements.speakingIndicator.classList.add("hidden");
-      stopLipSync();
-      reject(e);
-    };
-
-    state.sharedAudio.play().catch(reject);
-  });
 }
 
 function speakWithWebSpeech(text) {
@@ -1292,7 +1292,9 @@ async function callGeminiApi(userPrompt) {
     }
 
     const candidate = data.candidates && data.candidates[0];
-    const replyText = candidate?.content?.parts?.[0]?.text || "（返答を生成できませんでした）";
+    const parts = candidate?.content?.parts || [];
+    const textPart = parts.find(p => !p.thought && p.text) || parts[parts.length - 1];
+    const replyText = textPart?.text?.trim() || "（返答を生成できませんでした）";
 
     if (data.usageMetadata && data.usageMetadata.totalTokenCount) {
       recordTokenUsage(data.usageMetadata.totalTokenCount);
