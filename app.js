@@ -156,36 +156,52 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ==========================================
-// Pull-to-Refresh（下に引っ張って更新）
+// Pull-to-Refresh（下に引っ張って更新 / iOS Standalone PWA完全対応）
 // ==========================================
 function initPullToRefresh() {
   const ptrEl = document.getElementById("pull-to-refresh");
   const ptrIcon = ptrEl?.querySelector(".ptr-icon");
   const ptrText = ptrEl?.querySelector(".ptr-text");
   const container = elements.chatTimeline;
-  if (!ptrEl || !container) return;
+  if (!ptrEl) return;
 
   let startY = 0;
+  let startX = 0;
   let currentY = 0;
   let isPulling = false;
-  const PULL_THRESHOLD = 65;
+  let isRefreshing = false;
+  const PULL_THRESHOLD = 50;
 
-  container.addEventListener("touchstart", (e) => {
-    if (container.scrollTop <= 2) {
+  const onTouchStart = (e) => {
+    if (isRefreshing) return;
+    if (elements.settingsPanel && !elements.settingsPanel.classList.contains("hidden")) return;
+    if (elements.memoPanel && !elements.memoPanel.classList.contains("hidden")) return;
+
+    const scrollPos = container ? container.scrollTop : 0;
+    if (scrollPos <= 5) {
       startY = e.touches[0].pageY;
+      startX = e.touches[0].pageX;
       isPulling = true;
     } else {
       isPulling = false;
     }
-  }, { passive: true });
+  };
 
-  container.addEventListener("touchmove", (e) => {
-    if (!isPulling) return;
+  const onTouchMove = (e) => {
+    if (!isPulling || isRefreshing) return;
     currentY = e.touches[0].pageY;
-    const diff = currentY - startY;
+    const currentX = e.touches[0].pageX;
+    const diffY = currentY - startY;
+    const diffX = Math.abs(currentX - startX);
 
-    if (diff > 5 && container.scrollTop <= 2) {
-      const translateY = Math.min(diff * 0.45, 60);
+    if (diffX > diffY) return; // 横スワイプは無視
+
+    const scrollPos = container ? container.scrollTop : 0;
+    if (diffY > 5 && scrollPos <= 2) {
+      if (e.cancelable && diffY > 15) {
+        e.preventDefault(); // iOS Standalone PWAのスクロールロック/キャンセルを防止
+      }
+      const translateY = Math.min(diffY * 0.45, 60);
       ptrEl.style.transform = `translateY(${translateY}px)`;
       ptrEl.classList.add("visible");
       
@@ -197,16 +213,18 @@ function initPullToRefresh() {
         if (ptrIcon) ptrIcon.style.transform = "rotate(0deg)";
       }
     }
-  }, { passive: true });
+  };
 
-  container.addEventListener("touchend", async () => {
-    if (!isPulling) return;
+  const onTouchEnd = async () => {
+    if (!isPulling || isRefreshing) return;
     isPulling = false;
-    const diff = currentY - startY;
+    const diffY = currentY - startY;
+    const scrollPos = container ? container.scrollTop : 0;
 
-    if (diff * 0.45 >= PULL_THRESHOLD * 0.45 && container.scrollTop <= 5) {
+    if (diffY * 0.45 >= PULL_THRESHOLD * 0.45 && scrollPos <= 10) {
+      isRefreshing = true;
       ptrEl.classList.add("refreshing");
-      if (ptrText) ptrText.textContent = "更新中...";
+      if (ptrText) ptrText.textContent = "同期中...";
       ptrEl.style.transform = "translateY(48px)";
 
       try {
@@ -226,6 +244,7 @@ function initPullToRefresh() {
             ptrIcon.style.transform = "rotate(0deg)";
           }
           if (ptrText) ptrText.textContent = "下に引っ張って更新";
+          isRefreshing = false;
         }, 300);
       }, 700);
     } else {
@@ -234,7 +253,11 @@ function initPullToRefresh() {
     }
     startY = 0;
     currentY = 0;
-  });
+  };
+
+  document.addEventListener("touchstart", onTouchStart, { passive: true });
+  document.addEventListener("touchmove", onTouchMove, { passive: false });
+  document.addEventListener("touchend", onTouchEnd, { passive: true });
 }
 
 // iOS Safari オーディオアンロック
@@ -1537,24 +1560,26 @@ async function fetchKumapyTasks() {
     const remaining = activeTasks;
 
     if (running) {
-      elements.kumapyIcon.textContent = "🎯";
-      elements.kumapyText.textContent = `[計測中] ${running.title} (${running.actStartHm || "実行中"}〜)`;
+      elements.kumapyIcon.textContent = "▶️";
+      elements.kumapyText.textContent = `${running.title} (${running.actStartHm || "実行中"}〜)`;
       elements.kumapyStatusBar.title = `【進行中タスク】${running.title}\n開始: ${running.actStartHm || ""}`;
     } else if (nextTargetTask) {
       const timeLabel = nextTargetTask.planEndHm ? `${nextTargetTask.planStartHm}-${nextTargetTask.planEndHm}` : `${nextTargetTask.planStartHm}〜`;
-      const prefix = nextTargetType === "in_window" ? "[予定]" : "[次回]";
+      const isWindow = nextTargetType === "in_window";
+      const icon = isWindow ? "📍" : "⏳";
       const countSuffix = remaining.length > 1 ? ` (残${remaining.length}件)` : "";
-      elements.kumapyIcon.textContent = "📅";
-      elements.kumapyText.textContent = `${prefix} ${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
-      elements.kumapyStatusBar.title = `【${nextTargetType === "in_window" ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
+      elements.kumapyIcon.textContent = icon;
+      elements.kumapyText.textContent = `${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
+      elements.kumapyStatusBar.title = `【${isWindow ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
     } else {
       if (remaining.length > 0) {
-        elements.kumapyIcon.textContent = "🐻";
-        elements.kumapyText.textContent = `[本日残り] ${remaining[0].title}${remaining.length > 1 ? ` 他${remaining.length - 1}件` : ""}`;
-        elements.kumapyStatusBar.title = `本日残り: ${remaining.length}件`;
+        const countSuffix = remaining.length > 1 ? ` 他${remaining.length - 1}件` : "";
+        elements.kumapyIcon.textContent = "📋";
+        elements.kumapyText.textContent = `${remaining[0].title}${countSuffix}`;
+        elements.kumapyStatusBar.title = `本日残りタスク: ${remaining.length}件`;
       } else {
-        elements.kumapyIcon.textContent = "✨";
-        elements.kumapyText.textContent = "本日の予定・タスク完了！";
+        elements.kumapyIcon.textContent = "🎉";
+        elements.kumapyText.textContent = "本日のタスク完了！";
         elements.kumapyStatusBar.title = "すべての予定・タスクが完了しています";
       }
     }
