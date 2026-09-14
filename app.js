@@ -127,10 +127,24 @@ document.addEventListener("DOMContentLoaded", () => {
   renderMemos();
   setupEventListeners();
   fetchKumapyTasks();
-  setInterval(fetchKumapyTasks, 30 * 1000);
   
-  // クラウド同期（GAS経由）
+  // 定期バックグラウンド自動同期 (20秒ごと)
+  setInterval(fetchKumapyTasks, 30 * 1000);
+  setInterval(syncFromCloud, 20 * 1000);
+  
+  // クラウド同期初回実行
   syncFromCloud();
+
+  // PWA/ブラウザ復帰時（画面復帰・アプリ切り替え・タブフォーカス）の自動同期
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      syncFromCloud();
+      fetchKumapyTasks();
+    }
+  });
+  window.addEventListener("focus", () => {
+    syncFromCloud();
+  });
 
   // iOS オーディオアンロック (タップ・タッチ時に確実に準備)
   const unlockEvents = ["touchstart", "touchend", "click", "keydown"];
@@ -317,14 +331,21 @@ function setupEventListeners() {
     elements.archiveArrow.textContent = isHidden ? "▶" : "▼";
   });
 
-  // Kumapy更新 & バークリック
+  // Kumapy & 会話ログ・設定 一括リフレッシュ
   elements.btnKumapyRefresh.addEventListener("click", (e) => {
     e.stopPropagation();
     fetchKumapyTasks();
+    syncFromCloud();
   });
   elements.kumapyStatusBar.addEventListener("click", () => {
     fetchKumapyTasks();
+    syncFromCloud();
   });
+  if (elements.headerAvatarBtn) {
+    elements.headerAvatarBtn.addEventListener("click", () => {
+      syncFromCloud();
+    });
+  }
 
   // スライダー値表示更新
   elements.voicePitch.addEventListener("input", (e) => {
