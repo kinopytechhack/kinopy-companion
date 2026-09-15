@@ -2341,13 +2341,14 @@ function parseCsv(csvText) {
 }
 
 async function fetchKumapyTasks() {
-  let sheetId = state.kumapyUrl.trim();
-  const match = sheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (match) sheetId = match[1];
+  let raw = (state.kumapyUrl || "").trim();
+  let sheetId = "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU";
 
-  if (!sheetId) {
-    if (elements.kumapyText) elements.kumapyText.textContent = "⚙️ Kumapy設定が必要です";
-    return;
+  const match = raw.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) {
+    sheetId = match[1];
+  } else if (raw && !raw.includes("http") && !raw.includes("/")) {
+    sheetId = raw;
   }
 
   if (elements.btnKumapyRefresh) elements.btnKumapyRefresh.classList.add("spinning");
