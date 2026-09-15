@@ -138,14 +138,15 @@ body {
   left: auto;
   background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
   color: #ffffff;
-  border-radius: 50%;
+  border-radius: 12px;
   min-width: 24px;
   height: 24px;
-  padding: 0 4px;
+  padding: 0 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
   font-weight: 700;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 8px rgba(234, 88, 12, 0.45);
@@ -157,6 +158,22 @@ body {
   animation: badge-pulse 2s infinite ease-in-out;
   z-index: 150;
   transition: transform 0.15s ease;
+}
+
+.mini-badge.hidden {
+  display: none !important;
+}
+
+.mini-badge .mini-badge-icon {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.mini-badge .badge-count {
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+  pointer-events: none;
 }
 
 .mini-badge:active {
@@ -199,20 +216,21 @@ body {
 
 /* 下部横長1行予定枠 (PWA用・すっきりナチュラルスタイル) */
 .mascot-task-bar {
-  width: 90%;
-  max-width: 320px;
-  min-height: 38px;
+  width: 290px;
+  max-width: 90%;
+  height: 34px;
+  min-height: 34px;
   background: #F7F2EA;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  font-size: 13px;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 12px;
   font-weight: 700;
   color: #4A3F35;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: transform 0.15s ease, background 0.15s ease;
   z-index: 10;
@@ -228,7 +246,7 @@ body {
 }
 
 .mascot-task-bar .char-task-icon {
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
   z-index: 2;
 }
@@ -239,6 +257,8 @@ body {
   text-overflow: ellipsis;
   flex: 1;
   display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 @keyframes taskTextScrollDynamic {
@@ -253,16 +273,17 @@ body {
 /* 独り言・予定通知用ミニ吹き出し (PWA用・常時表示) */
 .floating-bubble {
   position: relative;
-  max-width: 280px;
+  max-width: 260px;
   min-width: 140px;
   background: #ffffff;
-  color: #2D2A26;
+  color: #383028;
   border: 1.2px solid #8C7B6C;
-  border-radius: 18px;
-  padding: 10px 16px;
-  font-size: 13px;
+  border-radius: 16px;
+  padding: 8px 14px;
+  font-size: 12px;
   line-height: 1.45;
   font-weight: 600;
+  text-align: center;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   z-index: 100;
   pointer-events: auto;
@@ -279,6 +300,8 @@ body {
 .floating-bubble-text {
   word-break: break-word;
   text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .floating-bubble-tail {

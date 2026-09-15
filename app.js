@@ -391,6 +391,7 @@ function setupEventListeners() {
     if (elements.mascotScreen) elements.mascotScreen.classList.add("hidden");
     if (elements.chatPanelScreen) elements.chatPanelScreen.classList.remove("hidden");
     state.isPanelOpen = true;
+    if (window.clearPwaUnreadBadge) window.clearPwaUnreadBadge();
     hidePwaFloatingBubble(true);
     scrollToBottom();
   };
@@ -479,12 +480,34 @@ function setupEventListeners() {
     });
   }
   // PWA 湯気バッジ（未読合図）のドラッグ＆保存、タップでチャットを開く
+  const SAUNA_BADGE_SVG = '<svg class="mini-badge-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M7.5 15c-1-2 1-3 0-5.5"/><path d="M12 15c-1-2 1-3 0-5.5"/><path d="M16.5 15c-1-2 1-3 0-5.5"/></svg>';
+  let pwaUnreadCount = 0;
   let isDraggingPwaBadge = false;
   let pwaBadgeDragStartX = 0;
   let pwaBadgeDragStartY = 0;
   let pwaBadgeInitialLeft = 0;
   let pwaBadgeInitialTop = 0;
   let pwaBadgeHasMoved = false;
+
+  window.showPwaUnreadBadge = () => {
+    pwaUnreadCount++;
+    if (elements.mascotMiniBadge) {
+      elements.mascotMiniBadge.innerHTML = pwaUnreadCount > 1
+        ? `${SAUNA_BADGE_SVG}<span class="badge-count">${pwaUnreadCount}</span>`
+        : SAUNA_BADGE_SVG;
+      if (!state.isPanelOpen) {
+        elements.mascotMiniBadge.classList.remove("hidden");
+      }
+    }
+  };
+
+  window.clearPwaUnreadBadge = () => {
+    pwaUnreadCount = 0;
+    if (elements.mascotMiniBadge) {
+      elements.mascotMiniBadge.innerHTML = SAUNA_BADGE_SVG;
+      elements.mascotMiniBadge.classList.add("hidden");
+    }
+  };
 
   const loadPwaBadgePosition = () => {
     if (!elements.mascotMiniBadge) return;
@@ -547,7 +570,7 @@ function setupEventListeners() {
   };
 
   if (elements.mascotMiniBadge) {
-    elements.mascotMiniBadge.textContent = "♨️";
+    elements.mascotMiniBadge.innerHTML = SAUNA_BADGE_SVG;
 
     // Pointer Events による一元的なタッチ・マウスドラッグ対応
     elements.mascotMiniBadge.addEventListener("pointerdown", (e) => {
@@ -1488,6 +1511,7 @@ function addMessageBubble(role, text, timeStr, shouldSave = true) {
     lastBotSpeechText = text;
     if (!state.isPanelOpen) {
       showPwaFloatingBubble(text);
+      if (window.showPwaUnreadBadge) window.showPwaUnreadBadge();
     }
   }
 
