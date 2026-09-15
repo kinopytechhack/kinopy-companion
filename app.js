@@ -1178,7 +1178,31 @@ async function speak(text) {
   speakWithWebSpeech(text, state.voiceRate, state.voicePitch);
 }
 
+// Web Audio API によるピッチ・速度対応の高品質再生コンテキスト
+let pwaAudioContextInstance = null;
+function getPwaAudioContext() {
+  if (!pwaAudioContextInstance) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      pwaAudioContextInstance = new AudioCtx();
+    }
+  }
+  if (pwaAudioContextInstance && pwaAudioContextInstance.state === "suspended") {
+    pwaAudioContextInstance.resume();
+  }
+  return pwaAudioContextInstance;
+}
+
 async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch = state.voicePitch) {
+  // 既存の再生音声を即時完全停止（多重再生・割り込み防止）
+  if (state.currentAudioSource) {
+    try { state.currentAudioSource.stop(); } catch (e) {}
+    state.currentAudioSource = null;
+  }
+  if (state.sharedAudio) {
+    try { state.sharedAudio.pause(); } catch (e) {}
+  }
+
   const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
   const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
 
@@ -1210,51 +1234,53 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
 
   if (!audioUrl) throw new Error("No audio URL available");
 
-  // 音声Blobを取得して完全バッファリング再生（途切れ防止＆安定化）
-  let audioSrc = audioUrl;
-  try {
-    const audioRes = await fetch(audioUrl);
-    if (audioRes.ok) {
-      const blob = await audioRes.blob();
-      audioSrc = URL.createObjectURL(blob);
-    }
-  } catch (e) {
-    console.warn("Blob conversion fallback:", e);
-  }
+  // 音声バイナリを取得
+  const audioRes = await fetch(audioUrl);
+  if (!audioRes.ok) throw new Error(`Audio fetch failed: ${audioRes.status}`);
+  const arrayBuffer = await audioRes.arrayBuffer();
+
+  const audioCtx = getPwaAudioContext();
+  if (!audioCtx) throw new Error("AudioContext not available");
+
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
   return new Promise((resolve, reject) => {
-    state.sharedAudio.src = audioSrc;
-    state.sharedAudio.playbackRate = rate;
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.playbackRate.value = rate;
+
+    // ピッチ変調 (detune: 100 cents = 1半音, 1200 cents = 1オクターブ)
+    if (source.detune) {
+      source.detune.value = (pitch - 1.0) * 1200;
+    }
+
+    source.connect(audioCtx.destination);
+    state.currentAudioSource = source;
 
     const cleanup = () => {
       state.isSpeaking = false;
+      if (state.currentAudioSource === source) {
+        state.currentAudioSource = null;
+      }
       elements.speakingIndicator.classList.add("hidden");
       stopLipSync();
-      if (audioSrc.startsWith("blob:")) {
-        try { URL.revokeObjectURL(audioSrc); } catch (e) {}
-      }
     };
 
-    state.sharedAudio.onplay = () => {
-      state.isSpeaking = true;
-      elements.speakingIndicator.classList.remove("hidden");
-      startLipSync();
-    };
-
-    state.sharedAudio.onended = () => {
+    source.onended = () => {
       cleanup();
       resolve();
     };
 
-    state.sharedAudio.onerror = (e) => {
-      cleanup();
-      reject(e);
-    };
+    state.isSpeaking = true;
+    elements.speakingIndicator.classList.remove("hidden");
+    startLipSync();
 
-    state.sharedAudio.play().catch((err) => {
+    try {
+      source.start(0);
+    } catch (err) {
       cleanup();
       reject(err);
-    });
+    }
   });
 }
 
