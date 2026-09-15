@@ -60,6 +60,9 @@ let audioStream = null;
 let currentSearchResults = [];
 let currentSearchIndex = -1;
 
+// 直近のボット発話テキスト
+let lastBotSpeechText = "きのぴぃ、今日もよろしくね！";
+
 // DOM要素
 const elements = {
   chatTimeline: document.getElementById("chat-timeline"),
@@ -392,6 +395,7 @@ function setupEventListeners() {
     if (elements.chatPanelScreen) elements.chatPanelScreen.classList.add("hidden");
     if (elements.mascotScreen) elements.mascotScreen.classList.remove("hidden");
     state.isPanelOpen = false;
+    showPwaFloatingBubble(lastBotSpeechText);
   };
 
   if (elements.mascotTouchArea) {
@@ -404,10 +408,11 @@ function setupEventListeners() {
       syncFromCloud();
     });
   }
-  if (elements.btnChatClose) {
-    elements.btnChatClose.addEventListener("click", (e) => {
+  if (elements.headerAvatarBtn) {
+    elements.headerAvatarBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       closeChatPanel();
+      syncFromCloud();
     });
   }
   if (elements.btnMascotSettings) {
@@ -502,11 +507,6 @@ function setupEventListeners() {
     fetchKumapyTasks();
     syncFromCloud();
   });
-  if (elements.headerAvatarBtn) {
-    elements.headerAvatarBtn.addEventListener("click", () => {
-      syncFromCloud();
-    });
-  }
 
   // スライダー値表示更新
   elements.voicePitch.addEventListener("input", (e) => {
@@ -529,20 +529,6 @@ function setupEventListeners() {
       const action = btn.dataset.action;
       handleQuickAction(action);
     });
-  });
-
-  // ヘッダーアバタータップ
-  elements.headerAvatarBtn.addEventListener("click", () => {
-    unlockAudioContext();
-    const greetings = [
-      "サウナハット被っていつでもスタンバイOKだよ！",
-      "無理しすぎないで、たまにはサウナで汗流してリフレッシュしよ！",
-      "きのぴぃ、今取り組んでるタスク、順調？",
-      "ひと休みするならぼくに言ってね。タイマーも測れるよ！"
-    ];
-    const picked = greetings[Math.floor(Math.random() * greetings.length)];
-    addMessageBubble("bot", picked, null, true);
-    speak(picked);
   });
 
   // チャット検索
@@ -1309,7 +1295,10 @@ function addMessageBubble(role, text, timeStr, shouldSave = true) {
   scrollToBottom();
 
   if (role === "bot") {
-    showPwaFloatingBubble(text);
+    lastBotSpeechText = text;
+    if (!state.isPanelOpen) {
+      showPwaFloatingBubble(text);
+    }
   }
 
   state.conversationHistory.push({

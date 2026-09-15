@@ -327,14 +327,23 @@ body {
 }
 
 .avatar-wrapper {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  border: 1.5px solid #818cf8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  border: 2px solid #574c3e;
   flex-shrink: 0;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.avatar-wrapper:active {
+  transform: scale(0.9);
 }
 
 .header-avatar-img {
