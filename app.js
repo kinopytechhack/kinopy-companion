@@ -461,6 +461,105 @@ function setupEventListeners() {
       }
     });
   }
+  // PWA 湯気バッジ（未読合図）のドラッグ＆保存、タップでチャットを開く
+  let isDraggingPwaBadge = false;
+  let pwaBadgeDragStartX = 0;
+  let pwaBadgeDragStartY = 0;
+  let pwaBadgeInitialLeft = 0;
+  let pwaBadgeInitialTop = 0;
+  let pwaBadgeHasMoved = false;
+
+  const loadPwaBadgePosition = () => {
+    if (!elements.mascotMiniBadge) return;
+    try {
+      const saved = localStorage.getItem("companion_pwa_badge_pos");
+      if (saved) {
+        const pos = JSON.parse(saved);
+        if (typeof pos.left === "number" && typeof pos.top === "number") {
+          elements.mascotMiniBadge.style.left = `${pos.left}px`;
+          elements.mascotMiniBadge.style.top = `${pos.top}px`;
+          elements.mascotMiniBadge.style.right = "auto";
+        }
+      }
+    } catch (e) {
+      console.warn("loadPwaBadgePosition error:", e);
+    }
+  };
+  loadPwaBadgePosition();
+
+  const handlePwaBadgeStart = (clientX, clientY) => {
+    isDraggingPwaBadge = true;
+    pwaBadgeHasMoved = false;
+    pwaBadgeDragStartX = clientX;
+    pwaBadgeDragStartY = clientY;
+    const badgeRect = elements.mascotMiniBadge.getBoundingClientRect();
+    const parent = elements.mascotMiniBadge.parentElement || elements.mascotTouchArea;
+    const parentRect = parent.getBoundingClientRect();
+    pwaBadgeInitialLeft = badgeRect.left - parentRect.left;
+    pwaBadgeInitialTop = badgeRect.top - parentRect.top;
+  };
+
+  const handlePwaBadgeMove = (clientX, clientY) => {
+    if (!isDraggingPwaBadge || !elements.mascotMiniBadge) return;
+    const deltaX = clientX - pwaBadgeDragStartX;
+    const deltaY = clientY - pwaBadgeDragStartY;
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      pwaBadgeHasMoved = true;
+    }
+    const parent = elements.mascotMiniBadge.parentElement || elements.mascotTouchArea;
+    const maxW = parent ? parent.clientWidth - 28 : 280;
+    const maxH = parent ? parent.clientHeight - 28 : 280;
+    const newLeft = Math.max(0, Math.min(maxW, pwaBadgeInitialLeft + deltaX));
+    const newTop = Math.max(0, Math.min(maxH, pwaBadgeInitialTop + deltaY));
+    elements.mascotMiniBadge.style.left = `${newLeft}px`;
+    elements.mascotMiniBadge.style.top = `${newTop}px`;
+    elements.mascotMiniBadge.style.right = "auto";
+  };
+
+  const handlePwaBadgeEnd = () => {
+    if (!isDraggingPwaBadge) return;
+    isDraggingPwaBadge = false;
+    if (pwaBadgeHasMoved && elements.mascotMiniBadge) {
+      const left = parseInt(elements.mascotMiniBadge.style.left, 10);
+      const top = parseInt(elements.mascotMiniBadge.style.top, 10);
+      localStorage.setItem("companion_pwa_badge_pos", JSON.stringify({ left, top }));
+    }
+    setTimeout(() => { pwaBadgeHasMoved = false; }, 50);
+  };
+
+  if (elements.mascotMiniBadge) {
+    elements.mascotMiniBadge.textContent = "♨️";
+    elements.mascotMiniBadge.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+      handlePwaBadgeStart(e.clientX, e.clientY);
+    });
+
+    elements.mascotMiniBadge.addEventListener("touchstart", (e) => {
+      e.stopPropagation();
+      const touch = e.touches[0];
+      if (touch) handlePwaBadgeStart(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    elements.mascotMiniBadge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!pwaBadgeHasMoved) {
+        openChatPanel();
+      }
+    });
+  }
+
+  window.addEventListener("mousemove", (e) => {
+    if (isDraggingPwaBadge) handlePwaBadgeMove(e.clientX, e.clientY);
+  });
+  window.addEventListener("touchmove", (e) => {
+    if (isDraggingPwaBadge && e.touches[0]) {
+      handlePwaBadgeMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  window.addEventListener("mouseup", handlePwaBadgeEnd);
+  window.addEventListener("touchend", handlePwaBadgeEnd);
+
   if (elements.headerAvatarBtn) {
     elements.headerAvatarBtn.addEventListener("click", (e) => {
       e.stopPropagation();

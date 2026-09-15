@@ -128,7 +128,7 @@ body {
   justify-content: center;
 }
 
-/* メッセージ合図バッジ (サウナ湯気 ♨️ 通知) */
+/* メッセージ合図バッジ (サウナ湯気 ♨️ 通知・ドラッグ移動＆タップ対応) */
 .mini-badge {
   position: absolute;
   top: 18px;
@@ -136,19 +136,29 @@ body {
   background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
   color: #ffffff;
   border-radius: 50%;
-  min-width: 24px;
-  height: 24px;
+  min-width: 26px;
+  height: 26px;
   padding: 0 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 10px rgba(234, 88, 12, 0.45);
-  pointer-events: none;
+  cursor: grab;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   animation: badge-pulse 2s infinite ease-in-out;
-  z-index: 100;
+  z-index: 150;
+  transition: transform 0.15s ease;
+}
+
+.mini-badge:active {
+  cursor: grabbing;
+  transform: scale(1.1);
 }
 
 @keyframes badge-pulse {
