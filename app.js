@@ -138,6 +138,7 @@ const elements = {
   btnMascotChat: document.getElementById("btn-mascot-chat"),
   btnMascotToggleMode: document.getElementById("btn-mascot-toggle-mode"),
   btnMascotSettings: document.getElementById("btn-mascot-settings"),
+  btnMascotSoundToggle: document.getElementById("btn-mascot-sound-toggle"),
   btnChatClose: document.getElementById("btn-chat-close"),
   mascotAvatarImg: document.getElementById("mascot-avatar-img"),
   mascotMiniBadge: document.getElementById("mascot-mini-badge"),
@@ -416,7 +417,20 @@ function updateBadgeState() {
     elements.aiModeBadge.textContent = "⚡ 内蔵モード";
     elements.aiModeBadge.classList.remove("active");
   }
-  elements.btnSoundToggle.textContent = state.voiceEnabled ? "🔊" : "🔇";
+  const soundIcon = state.voiceEnabled ? "🔊" : "🔇";
+  if (elements.btnSoundToggle) {
+    elements.btnSoundToggle.textContent = soundIcon;
+    elements.btnSoundToggle.title = state.voiceEnabled ? "音声読み上げ: オン (クリックでミュート)" : "音声読み上げ: オフ (クリックでオン)";
+    elements.btnSoundToggle.classList.toggle("muted", !state.voiceEnabled);
+  }
+  if (elements.btnMascotSoundToggle) {
+    elements.btnMascotSoundToggle.textContent = soundIcon;
+    elements.btnMascotSoundToggle.title = state.voiceEnabled ? "音声読み上げ: オン (クリックでミュート)" : "音声読み上げ: オフ (クリックでオン)";
+    elements.btnMascotSoundToggle.classList.toggle("muted", !state.voiceEnabled);
+  }
+  if (elements.voiceToggle) {
+    elements.voiceToggle.checked = state.voiceEnabled;
+  }
 }
 
 // ==========================================
@@ -666,12 +680,92 @@ function setupEventListeners() {
       syncFromCloud();
     });
   }
+  // モーダル排他制御ヘルパー
+  const openSettingsModal = (e) => {
+    if (e) e.stopPropagation();
+    if (elements.memoPanel) elements.memoPanel.classList.add("hidden");
+    loadSettingsToUI();
+    if (elements.settingsPanel) elements.settingsPanel.classList.remove("hidden");
+  };
+
+  const closeSettingsModal = (save = false) => {
+    saveSettings(save);
+    if (elements.settingsPanel) elements.settingsPanel.classList.add("hidden");
+  };
+
+  const openMemoModal = (e) => {
+    if (e) e.stopPropagation();
+    if (elements.settingsPanel) elements.settingsPanel.classList.add("hidden");
+    renderMemos();
+    if (elements.memoPanel) elements.memoPanel.classList.remove("hidden");
+  };
+
+  const closeMemoModal = (e) => {
+    if (e) e.stopPropagation();
+    if (elements.memoPanel) elements.memoPanel.classList.add("hidden");
+  };
+
   if (elements.btnMascotSettings) {
-    elements.btnMascotSettings.addEventListener("click", (e) => {
+    elements.btnMascotSettings.addEventListener("click", openSettingsModal);
+  }
+
+  // 設定パネル
+  if (elements.btnSettingsToggle) {
+    elements.btnSettingsToggle.addEventListener("click", openSettingsModal);
+  }
+  if (elements.btnSettingsClose) {
+    elements.btnSettingsClose.addEventListener("click", (e) => {
       e.stopPropagation();
-      loadSettingsToUI();
-      elements.settingsPanel.classList.remove("hidden");
+      closeSettingsModal(false);
     });
+  }
+  if (elements.btnSaveSettings) {
+    elements.btnSaveSettings.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeSettingsModal(true);
+    });
+  }
+
+  // メモパネル
+  if (elements.btnMemoManage) {
+    elements.btnMemoManage.addEventListener("click", openMemoModal);
+  }
+  if (elements.btnMemoClose) {
+    elements.btnMemoClose.addEventListener("click", closeMemoModal);
+  }
+
+  // モーダル背景（オーバーレイ暗部）タップで閉じる
+  if (elements.settingsPanel) {
+    elements.settingsPanel.addEventListener("click", (e) => {
+      if (e.target === elements.settingsPanel) {
+        closeSettingsModal(false);
+      }
+    });
+  }
+  if (elements.memoPanel) {
+    elements.memoPanel.addEventListener("click", (e) => {
+      if (e.target === elements.memoPanel) {
+        closeMemoModal(e);
+      }
+    });
+  }
+
+  // サウンド切り替え（マスコット画面 ＆ チャット画面 双方）
+  const toggleSoundState = (e) => {
+    if (e) e.stopPropagation();
+    state.voiceEnabled = !state.voiceEnabled;
+    localStorage.setItem("voice_enabled", state.voiceEnabled.toString());
+    updateBadgeState();
+    if (!state.voiceEnabled) {
+      stopVoice();
+    }
+  };
+
+  if (elements.btnSoundToggle) {
+    elements.btnSoundToggle.addEventListener("click", toggleSoundState);
+  }
+  if (elements.btnMascotSoundToggle) {
+    elements.btnMascotSoundToggle.addEventListener("click", toggleSoundState);
   }
 
   // 送信（クリック）
@@ -695,17 +789,6 @@ function setupEventListeners() {
     unlockAudioContext();
     toggleVoiceRecording();
   });
-
-  // 設定パネル
-  elements.btnSettingsToggle.addEventListener("click", () => {
-    loadSettingsToUI();
-    elements.settingsPanel.classList.remove("hidden");
-  });
-  elements.btnSettingsClose.addEventListener("click", () => {
-    saveSettings(false);
-    elements.settingsPanel.classList.add("hidden");
-  });
-  elements.btnSaveSettings.addEventListener("click", () => saveSettings(true));
 
   if (elements.btnRefreshDailyContext) {
     elements.btnRefreshDailyContext.addEventListener("click", async () => {
@@ -747,30 +830,15 @@ function setupEventListeners() {
   // クイックバッジ切り替え
   elements.aiModeBadge.addEventListener("click", () => {
     state.geminiEnabled = !state.geminiEnabled;
-    localStorage.setItem("gemini_enabled", state.geminiEnabled);
+    localStorage.setItem("gemini_enabled", state.geminiEnabled.toString());
     elements.geminiApiToggle.checked = state.geminiEnabled;
     updateBadgeState();
     addMessageBubble("bot", state.geminiEnabled ? "Gemini AIモードをONにしたよ！賢くお答えするね。" : "内蔵モードに切り替えたよ！", null, true);
   });
 
-  // サウンド切り替え
-  elements.btnSoundToggle.addEventListener("click", () => {
-    state.voiceEnabled = !state.voiceEnabled;
-    localStorage.setItem("voice_enabled", state.voiceEnabled);
-    updateBadgeState();
-  });
-
-  // メモパネル
-  elements.btnMemoManage.addEventListener("click", () => {
-    renderMemos();
-    elements.memoPanel.classList.remove("hidden");
-  });
-  elements.btnMemoClose.addEventListener("click", () => {
-    elements.memoPanel.classList.add("hidden");
-  });
-
   // メモ アーカイブ開閉
-  elements.btnToggleArchive.addEventListener("click", () => {
+  elements.btnToggleArchive.addEventListener("click", (e) => {
+    if (e) e.stopPropagation();
     const isHidden = elements.memoArchivedList.classList.toggle("hidden");
     elements.archiveArrow.textContent = isHidden ? "▶" : "▼";
   });
@@ -1385,8 +1453,12 @@ function escapeHtml(str) {
 // ==========================================
 // 過去ログ読み込み & タイムライン構築
 // ==========================================
-function getTodayYmd() {
-  const d = new Date();
+function getTodayYmd(date = new Date()) {
+  const d = new Date(date.getTime());
+  // 朝6時前（00:00〜05:59）なら前日扱い
+  if (d.getHours() < 6) {
+    d.setDate(d.getDate() - 1);
+  }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -2666,25 +2738,35 @@ async function syncFromCloud() {
       if (cloudMessages.length > 0) {
         localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
         
-        // 画面のタイムラインをクラウドの最新履歴で再描画
-        elements.chatTimeline.innerHTML = "";
-        if (loadPrevContainerEl) {
-          elements.chatTimeline.appendChild(loadPrevContainerEl);
+        const currentBubbleCount = elements.chatTimeline.querySelectorAll(".chat-bubble-row").length;
+        // メッセージ数が増えている場合のみスマートに差分追加描画、または件数が大きく異なる場合は再構築
+        if (currentBubbleCount === 0 || Math.abs(cloudMessages.length - currentBubbleCount) > 10) {
+          elements.chatTimeline.innerHTML = "";
+          if (loadPrevContainerEl) {
+            elements.chatTimeline.appendChild(loadPrevContainerEl);
+          }
+          elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
+          
+          state.conversationHistory = [];
+          cloudMessages.forEach(msg => {
+            elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+            state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+          });
+          scrollToBottom();
+        } else if (cloudMessages.length > currentBubbleCount) {
+          const newMessages = cloudMessages.slice(currentBubbleCount);
+          newMessages.forEach(msg => {
+            elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+            state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+          });
+          scrollToBottom();
         }
-        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
-        
-        state.conversationHistory = [];
-        cloudMessages.forEach(msg => {
-          elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-          state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
-        });
 
         if (state.conversationHistory.length > 20) {
           state.conversationHistory = state.conversationHistory.slice(-20);
         }
 
         updateLoadPrevButton();
-        scrollToBottom();
       }
     }
   } catch (err) {
