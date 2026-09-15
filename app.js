@@ -14,11 +14,11 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはユーザー「きのぴぃ」の専�
   - 疲れている・困っている・「もう無理」と言っている時: 全力で寄り添い、まずはとことん共感して休むことを全力肯定（「お風呂入ってサウナでととのっちゃおう」「まずは深呼吸しよ」など）。
 - 返答は長すぎず、要点を簡潔かつ温かみのある日本語（1〜3文程度）で返す。`;
 
-const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbwaT8iCLLVBU_IT65V3_fvrChkuvGIwgdRiEB_EJCcEmRHvH10kIabTHNV9arcJUKUa3g/exec";
+const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbyNbQePEOJjQmWqaAghvCs94mEraxRCEw0uPcPuJaHkw8fwbTZ7Gh9DWiTo8NLvC-w3PQ/exec";
 
 // 状態管理
 const savedSyncUrl = localStorage.getItem("companion_sync_gas_url");
-const syncGasUrl = (!savedSyncUrl || savedSyncUrl.includes("AKfycbx") || savedSyncUrl.includes("AKfycbz")) ? DEFAULT_SYNC_GAS_URL : savedSyncUrl;
+const syncGasUrl = (!savedSyncUrl || savedSyncUrl.includes("AKfycbx") || savedSyncUrl.includes("AKfycbz") || savedSyncUrl.includes("AKfycbwa")) ? DEFAULT_SYNC_GAS_URL : savedSyncUrl;
 localStorage.setItem("companion_sync_gas_url", syncGasUrl);
 
 const METRICS_CONFIG = {
@@ -2807,35 +2807,30 @@ async function syncFromCloud() {
     console.warn("Cloud settings JSONP sync warning:", err);
   }
 
-  // 2. 本日の会話ログの同期取得＆マージ（正本反映）
+  // 2. 本日の会話ログの同期取得＆マージ（正本反映・メッセージ消失防止）
   try {
     const data = await fetchGasJsonp("getLogs", { date: todayYmd });
     if (data && data.success && Array.isArray(data.messages)) {
       const cloudMessages = data.messages;
       if (cloudMessages.length > 0) {
-        localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
+        const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+        const getMsgKey = (m) => `${m.time || ""}|${m.role || ""}|${(m.text || "").trim()}`;
+        const localKeys = new Set(localLogs.map(getMsgKey));
         
-        const currentBubbleCount = elements.chatTimeline.querySelectorAll(".chat-bubble-row").length;
-        // メッセージ数が増えている場合のみスマートに差分追加描画、または件数が大きく異なる場合は再構築
-        if (currentBubbleCount === 0 || Math.abs(cloudMessages.length - currentBubbleCount) > 10) {
-          elements.chatTimeline.innerHTML = "";
-          if (loadPrevContainerEl) {
-            elements.chatTimeline.appendChild(loadPrevContainerEl);
+        let hasNew = false;
+        cloudMessages.forEach(cm => {
+          const key = getMsgKey(cm);
+          if (!localKeys.has(key)) {
+            localLogs.push({ role: cm.role, text: cm.text, time: cm.time });
+            localKeys.add(key);
+            hasNew = true;
+            elements.chatTimeline.appendChild(createMessageBubbleElement(cm.role, cm.text, cm.time));
+            state.conversationHistory.push({ role: cm.role === "user" ? "user" : "model", text: cm.text });
           }
-          elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
-          
-          state.conversationHistory = [];
-          cloudMessages.forEach(msg => {
-            elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-            state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
-          });
-          scrollToBottom();
-        } else if (cloudMessages.length > currentBubbleCount) {
-          const newMessages = cloudMessages.slice(currentBubbleCount);
-          newMessages.forEach(msg => {
-            elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-            state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
-          });
+        });
+
+        if (hasNew) {
+          localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(localLogs));
           scrollToBottom();
         }
 
