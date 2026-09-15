@@ -520,14 +520,14 @@ function setupEventListeners() {
     if (!isDraggingPwaBadge || !elements.mascotMiniBadge) return;
     const deltaX = clientX - pwaBadgeDragStartX;
     const deltaY = clientY - pwaBadgeDragStartY;
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
       pwaBadgeHasMoved = true;
     }
     const parent = elements.mascotMiniBadge.parentElement || elements.mascotTouchArea;
-    const maxW = parent ? parent.clientWidth - 28 : 280;
-    const maxH = parent ? parent.clientHeight - 28 : 280;
-    const newLeft = Math.max(0, Math.min(maxW, pwaBadgeInitialLeft + deltaX));
-    const newTop = Math.max(0, Math.min(maxH, pwaBadgeInitialTop + deltaY));
+    const maxW = parent ? parent.clientWidth - 24 : 176;
+    const maxH = parent ? parent.clientHeight - 24 : 176;
+    const newLeft = Math.max(-10, Math.min(maxW + 10, pwaBadgeInitialLeft + deltaX));
+    const newTop = Math.max(-10, Math.min(maxH + 10, pwaBadgeInitialTop + deltaY));
     elements.mascotMiniBadge.style.left = `${newLeft}px`;
     elements.mascotMiniBadge.style.top = `${newTop}px`;
     elements.mascotMiniBadge.style.right = "auto";
@@ -539,24 +539,57 @@ function setupEventListeners() {
     if (pwaBadgeHasMoved && elements.mascotMiniBadge) {
       const left = parseInt(elements.mascotMiniBadge.style.left, 10);
       const top = parseInt(elements.mascotMiniBadge.style.top, 10);
-      localStorage.setItem("companion_pwa_badge_pos", JSON.stringify({ left, top }));
+      if (!isNaN(left) && !isNaN(top)) {
+        localStorage.setItem("companion_pwa_badge_pos", JSON.stringify({ left, top }));
+      }
     }
-    setTimeout(() => { pwaBadgeHasMoved = false; }, 50);
+    setTimeout(() => { pwaBadgeHasMoved = false; }, 80);
   };
 
   if (elements.mascotMiniBadge) {
     elements.mascotMiniBadge.textContent = "♨️";
-    elements.mascotMiniBadge.addEventListener("mousedown", (e) => {
+
+    // Pointer Events による一元的なタッチ・マウスドラッグ対応
+    elements.mascotMiniBadge.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
+      e.preventDefault();
       handlePwaBadgeStart(e.clientX, e.clientY);
+      try {
+        elements.mascotMiniBadge.setPointerCapture(e.pointerId);
+      } catch (err) {}
     });
 
-    elements.mascotMiniBadge.addEventListener("touchstart", (e) => {
-      e.stopPropagation();
-      const touch = e.touches[0];
-      if (touch) handlePwaBadgeStart(touch.clientX, touch.clientY);
-    }, { passive: true });
+    elements.mascotMiniBadge.addEventListener("pointermove", (e) => {
+      if (isDraggingPwaBadge) {
+        e.stopPropagation();
+        e.preventDefault();
+        handlePwaBadgeMove(e.clientX, e.clientY);
+      }
+    });
 
+    elements.mascotMiniBadge.addEventListener("pointerup", (e) => {
+      if (!isDraggingPwaBadge) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const moved = pwaBadgeHasMoved;
+      handlePwaBadgeEnd();
+      try {
+        elements.mascotMiniBadge.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      if (!moved) {
+        openChatPanel();
+      }
+    });
+
+    elements.mascotMiniBadge.addEventListener("pointercancel", (e) => {
+      isDraggingPwaBadge = false;
+      pwaBadgeHasMoved = false;
+      try {
+        elements.mascotMiniBadge.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+    });
+
+    // クリックのフォールバック
     elements.mascotMiniBadge.addEventListener("click", (e) => {
       e.stopPropagation();
       if (!pwaBadgeHasMoved) {
@@ -564,18 +597,6 @@ function setupEventListeners() {
       }
     });
   }
-
-  window.addEventListener("mousemove", (e) => {
-    if (isDraggingPwaBadge) handlePwaBadgeMove(e.clientX, e.clientY);
-  });
-  window.addEventListener("touchmove", (e) => {
-    if (isDraggingPwaBadge && e.touches[0]) {
-      handlePwaBadgeMove(e.touches[0].clientX, e.touches[0].clientY);
-    }
-  }, { passive: true });
-
-  window.addEventListener("mouseup", handlePwaBadgeEnd);
-  window.addEventListener("touchend", handlePwaBadgeEnd);
 
   if (elements.headerAvatarBtn) {
     elements.headerAvatarBtn.addEventListener("click", (e) => {
