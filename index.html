@@ -9,16 +9,16 @@
   <title>カピパラさん - Kinopy Companion</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260915-1710">
+  <link rel="manifest" href="manifest.json?v=20260915-1715">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="カピパラさん">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1710">
-  <link rel="icon" href="assets/icon.png?v=20260915-1710">
-  <link rel="shortcut icon" href="favicon.ico?v=20260915-1710">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1715">
+  <link rel="icon" href="assets/icon.png?v=20260915-1715">
+  <link rel="shortcut icon" href="favicon.ico?v=20260915-1715">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260915-1710">
+  <link rel="stylesheet" href="style.css?v=20260915-1715">
 </head>
 <body>
   <div class="app-container">
@@ -27,10 +27,14 @@
     <div id="mascot-screen" class="mascot-screen">
       <div class="mascot-top-bar">
         <span class="mascot-app-title">カピパラさん</span>
-        <button id="btn-mascot-settings" class="mini-icon-btn" title="設定">⚙️</button>
+        <div class="mascot-top-actions">
+          <button id="btn-mascot-chat" class="mini-icon-btn" title="チャットを開く">💬</button>
+          <button id="btn-mascot-toggle-mode" class="mini-icon-btn" title="シンプル表示切替（アバターのみ / 情報付き）">👁️</button>
+          <button id="btn-mascot-settings" class="mini-icon-btn" title="設定">⚙️</button>
+        </div>
       </div>
       
-      <div class="mascot-main-area" id="mascot-touch-area" title="タップしてチャットを開く">
+      <div class="mascot-main-area" id="mascot-touch-area" title="ダブルクリック/タップでシンプル表示切替">
         <!-- 独り言・Kumapy予定通知用ミニ吹き出し -->
         <div class="floating-bubble hidden" id="mascot-floating-bubble">
           <div class="floating-bubble-text" id="mascot-floating-bubble-text"></div>

@@ -82,11 +82,19 @@ body {
 }
 
 .mascot-top-bar {
-  width: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  z-index: 10;
+}
+
+.mascot-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .mascot-app-title {
@@ -106,6 +114,17 @@ body {
   cursor: pointer;
   position: relative;
   gap: 20px;
+}
+
+/* シンプルモード（メッセージ・予定バーを非表示にし、アバターをゆったり中央表示） */
+.mascot-screen.simple-mode #mascot-floating-bubble,
+.mascot-screen.simple-mode #mascot-task-bar {
+  display: none !important;
+}
+
+.mascot-screen.simple-mode .mascot-avatar-ring {
+  width: 240px;
+  height: 240px;
 }
 
 .mascot-avatar-container {
@@ -197,13 +216,13 @@ body {
   min-width: 140px;
   background: #ffffff;
   color: #2D2A26;
-  border: 2px solid #4a3e35;
+  border: 1.2px solid #8C7B6C;
   border-radius: 18px;
   padding: 10px 16px;
   font-size: 13px;
   line-height: 1.45;
-  font-weight: 700;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   z-index: 100;
   pointer-events: auto;
   transition: transform 0.2s ease, opacity 0.3s ease;
@@ -223,26 +242,26 @@ body {
 
 .floating-bubble-tail {
   position: absolute;
-  bottom: -9px;
+  bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 9px solid #4a3e35;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #8C7B6C;
 }
 
 .floating-bubble-tail::after {
   content: '';
   position: absolute;
-  bottom: 2px;
-  left: -6px;
+  bottom: 1.5px;
+  left: -5px;
   width: 0;
   height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 7px solid #ffffff;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #ffffff;
 }
 
 @keyframes floatBubbleIn {

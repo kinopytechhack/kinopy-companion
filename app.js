@@ -36,6 +36,7 @@ const state = {
   todayTokens: parseInt(localStorage.getItem("gemini_today_tokens") || "0", 10),
   totalTokens: parseInt(localStorage.getItem("gemini_total_tokens") || "0", 10),
   tokenUsageDate: localStorage.getItem("gemini_token_date") || new Date().toISOString().slice(0, 10),
+  isSimpleMode: localStorage.getItem("companion_simple_mode") === "true",
   
   // チャット・ログ管理
   conversationHistory: [],
@@ -70,17 +71,19 @@ const elements = {
   btnSend: document.getElementById("btn-send"),
   btnVoiceInput: document.getElementById("btn-voice-input"),
   btnSoundToggle: document.getElementById("btn-sound-toggle"),
-  btnMemoManage: document.getElementById("btn-memo-manage"),
   btnSettingsToggle: document.getElementById("btn-settings-toggle"),
   btnSettingsClose: document.getElementById("btn-settings-close"),
   btnSaveSettings: document.getElementById("btn-save-settings"),
-  btnMemoClose: document.getElementById("btn-memo-close"),
   settingsPanel: document.getElementById("settings-panel"),
   memoPanel: document.getElementById("memo-panel"),
+  btnMemoManage: document.getElementById("btn-memo-manage"),
+  btnMemoClose: document.getElementById("btn-memo-close"),
+  btnSaveNewMemo: document.getElementById("btn-save-new-memo"),
+  newMemoInput: document.getElementById("new-memo-input"),
   aiModeBadge: document.getElementById("ai-mode-badge"),
-  aiStatusIndicator: document.getElementById("ai-status-indicator"),
   speakingIndicator: document.getElementById("speaking-indicator"),
   listeningIndicator: document.getElementById("listening-indicator"),
+  aiStatusIndicator: document.getElementById("ai-status-indicator"),
   timerBadge: document.getElementById("timer-badge"),
   kumapyStatusBar: document.getElementById("kumapy-status-bar"),
   kumapyText: document.getElementById("kumapy-text"),
@@ -112,6 +115,8 @@ const elements = {
   mascotScreen: document.getElementById("mascot-screen"),
   chatPanelScreen: document.getElementById("chat-panel-screen"),
   mascotTouchArea: document.getElementById("mascot-touch-area"),
+  btnMascotChat: document.getElementById("btn-mascot-chat"),
+  btnMascotToggleMode: document.getElementById("btn-mascot-toggle-mode"),
   btnMascotSettings: document.getElementById("btn-mascot-settings"),
   btnChatClose: document.getElementById("btn-chat-close"),
   mascotAvatarImg: document.getElementById("mascot-avatar-img"),
@@ -398,8 +403,50 @@ function setupEventListeners() {
     showPwaFloatingBubble(lastBotSpeechText);
   };
 
+  const toggleSimpleMode = () => {
+    state.isSimpleMode = !state.isSimpleMode;
+    localStorage.setItem("companion_simple_mode", state.isSimpleMode);
+    if (elements.mascotScreen) {
+      elements.mascotScreen.classList.toggle("simple-mode", state.isSimpleMode);
+    }
+  };
+
+  if (state.isSimpleMode && elements.mascotScreen) {
+    elements.mascotScreen.classList.add("simple-mode");
+  }
+
+  if (elements.btnMascotChat) {
+    elements.btnMascotChat.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openChatPanel();
+    });
+  }
+
+  if (elements.btnMascotToggleMode) {
+    elements.btnMascotToggleMode.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSimpleMode();
+    });
+  }
+
+  // ダブルタップ・ダブルクリックでシンプルモード切替
+  let lastTouchTime = 0;
   if (elements.mascotTouchArea) {
-    elements.mascotTouchArea.addEventListener("click", openChatPanel);
+    elements.mascotTouchArea.addEventListener("dblclick", (e) => {
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      toggleSimpleMode();
+    });
+
+    elements.mascotTouchArea.addEventListener("touchend", (e) => {
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      const currentTime = Date.now();
+      const tapLength = currentTime - lastTouchTime;
+      if (tapLength < 350 && tapLength > 0) {
+        toggleSimpleMode();
+        e.preventDefault();
+      }
+      lastTouchTime = currentTime;
+    });
   }
   if (elements.mascotTaskBar) {
     elements.mascotTaskBar.addEventListener("click", (e) => {
