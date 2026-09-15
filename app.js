@@ -172,14 +172,22 @@ function getTodayYmd(date = new Date()) {
 // 初期化
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-  initTokenUsage();
-  loadSettingsToUI();
-  updateBadgeState();
-  initChatTimeline();
-  renderMemos();
-  setupEventListeners();
-  fetchKumapyTasks();
-  initPullToRefresh();
+  const safeRun = (name, fn) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[Init Error] ${name}:`, err);
+    }
+  };
+
+  safeRun("initTokenUsage", initTokenUsage);
+  safeRun("loadSettingsToUI", loadSettingsToUI);
+  safeRun("updateBadgeState", updateBadgeState);
+  safeRun("initChatTimeline", initChatTimeline);
+  safeRun("renderMemos", renderMemos);
+  safeRun("setupEventListeners", setupEventListeners);
+  safeRun("fetchKumapyTasks", fetchKumapyTasks);
+  safeRun("initPullToRefresh", initPullToRefresh);
   
   // 定期バックグラウンド自動同期 (20秒ごと)
   setInterval(fetchKumapyTasks, 30 * 1000);
@@ -2356,6 +2364,7 @@ async function fetchKumapyTasks() {
   try {
     const today = new Date();
     const ymd = getTodayYmd(today);
+    const calendarYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const nowHm = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
 
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=CalendarEventsKumapy`;
@@ -2369,25 +2378,34 @@ async function fetchKumapyTasks() {
       throw new Error("データが空です");
     }
 
-    const tasks = [];
-    for (let i = 1; i < rows.length; i++) {
-      const cols = rows[i];
-      if (cols.length < 11) continue;
-      const taskYmd = cols[1];
-      if (taskYmd === ymd) {
-        tasks.push({
-          taskId: cols[0],
-          ymd: taskYmd,
-          title: cols[4] || "無題",
-          planStartHm: cols[6] || "",
-          planEndHm: cols[7] || "",
-          allDay: cols[8] === "TRUE",
-          status: cols[10] || "未着手",
-          isDone: (cols[10] === "完了"),
-          isSkipped: (cols[10] === "中止" || cols[10] === "不要" || cols[10] === "翌日移動"),
-          actStartHm: cols[13] || ""
-        });
+    let tasks = [];
+    const extractTasksForDate = (targetDate) => {
+      const list = [];
+      for (let i = 1; i < rows.length; i++) {
+        const cols = rows[i];
+        if (cols.length < 11) continue;
+        const taskYmd = cols[1];
+        if (taskYmd === targetDate) {
+          list.push({
+            taskId: cols[0],
+            ymd: taskYmd,
+            title: cols[4] || "無題",
+            planStartHm: cols[6] || "",
+            planEndHm: cols[7] || "",
+            allDay: cols[8] === "TRUE",
+            status: cols[10] || "未着手",
+            isDone: (cols[10] === "完了"),
+            isSkipped: (cols[10] === "中止" || cols[10] === "不要" || cols[10] === "翌日移動"),
+            actStartHm: cols[13] || ""
+          });
+        }
       }
+      return list;
+    };
+
+    tasks = extractTasksForDate(ymd);
+    if (tasks.length === 0 && ymd !== calendarYmd) {
+      tasks = extractTasksForDate(calendarYmd);
     }
 
     const running = tasks.find(t => t.status === "実行中");
@@ -2854,7 +2872,15 @@ async function syncFromCloud() {
 
   // 2. 本日の会話ログの同期取得＆マージ（正本反映・メッセージ消失防止）
   try {
-    const data = await fetchGasJsonp("getLogs", { date: todayYmd });
+    let data = await fetchGasJsonp("getLogs", { date: todayYmd });
+    const calendarYmd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+    if ((!data || !data.success || !Array.isArray(data.messages) || data.messages.length === 0) && todayYmd !== calendarYmd) {
+      const fallbackData = await fetchGasJsonp("getLogs", { date: calendarYmd });
+      if (fallbackData && fallbackData.success && Array.isArray(fallbackData.messages) && fallbackData.messages.length > 0) {
+        data = fallbackData;
+      }
+    }
+
     if (data && data.success && Array.isArray(data.messages)) {
       const cloudMessages = data.messages;
       if (cloudMessages.length > 0) {
@@ -2863,20 +2889,37 @@ async function syncFromCloud() {
         const localKeys = new Set(localLogs.map(getMsgKey));
         
         let hasNew = false;
+        const isInitialPlaceholderOnly = (localLogs.length === 0);
+
         cloudMessages.forEach(cm => {
           const key = getMsgKey(cm);
           if (!localKeys.has(key)) {
             localLogs.push({ role: cm.role, text: cm.text, time: cm.time });
             localKeys.add(key);
             hasNew = true;
-            elements.chatTimeline.appendChild(createMessageBubbleElement(cm.role, cm.text, cm.time));
-            state.conversationHistory.push({ role: cm.role === "user" ? "user" : "model", text: cm.text });
           }
         });
 
-        if (hasNew) {
+        if (hasNew || isInitialPlaceholderOnly) {
           localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(localLogs));
-          scrollToBottom();
+          
+          // タイムラインを再描画してプレースホルダーを正本で上書き
+          if (elements.chatTimeline) {
+            elements.chatTimeline.innerHTML = "";
+            if (loadPrevContainerEl) elements.chatTimeline.appendChild(loadPrevContainerEl);
+            elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
+            state.conversationHistory = [];
+            let lastBotMsg = null;
+            localLogs.forEach((msg) => {
+              elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+              state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+              if (msg.role === "bot") lastBotMsg = msg.text;
+            });
+            if (lastBotMsg) {
+              showPwaFloatingBubble(lastBotMsg);
+            }
+            scrollToBottom();
+          }
         }
 
         if (state.conversationHistory.length > 20) {
