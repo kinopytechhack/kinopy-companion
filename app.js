@@ -23,7 +23,8 @@ localStorage.setItem("companion_sync_gas_url", syncGasUrl);
 
 const METRICS_CONFIG = {
   sheetId: '1KaMsdvgVBvPku45Ut65VApzm5Mk_ggb8ZMNGsU84iHE',
-  weatherSheetName: 'Weather'
+  weatherSheetName: 'Weather',
+  sleepSheetName: 'Sleep'
 };
 
 const state = {
@@ -37,7 +38,10 @@ const state = {
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
   todayWeather: null,
+  todaySleep: null,
+  latestMorningPaper: null,
   weatherFetchDate: null,
+  dailyContextFetchDate: null,
   isCoachingMode: false,
   coachingTurnCount: 0,
   
@@ -1637,6 +1641,9 @@ async function callGeminiApi(userPrompt) {
   const weatherLine = state.todayWeather ? 
     `\n- 本日の気象 (${state.todayWeather.location}): ${state.todayWeather.weather} (最高 ${state.todayWeather.maxTemp}℃ / 最低 ${state.todayWeather.minTemp}℃, 降水 ${state.todayWeather.precipitation}mm)` : 
     '';
+  const sleepLine = state.todaySleep ? 
+    `\n- 昨夜の睡眠: ${state.todaySleep.durationText}${state.todaySleep.score ? ` (スコア ${state.todaySleep.score}点)` : ''}` : 
+    '';
 
   const coachingInstruction = state.isCoachingMode ? `
 【現在：思考整理・モヤモヤ壁打ちモード進行中】
@@ -1644,7 +1651,7 @@ async function callGeminiApi(userPrompt) {
 - ユーザーの話を受け止めて共感し、思考をほぐす客観的な問いかけ（「一番引っかかっているのは何？」「本当はどうなると最高？」など）を1つだけ投げかけてください。
 - もしユーザーの思考がまとまってきた時や、要約・解決策を求めている時は、スッキリ3行以内の箇条書き（【要点整理】現状・ボトルネック・次の最小の1歩）でまとめ、メモ保存を勧めてください。` : '';
 
-  const dynamicPrompt = `${DEFAULT_SYSTEM_PROMPT}${weatherLine}${coachingInstruction}`;
+  const dynamicPrompt = `${DEFAULT_SYSTEM_PROMPT}${weatherLine}${sleepLine}${coachingInstruction}`;
 
   const payload = {
     system_instruction: {
@@ -1713,12 +1720,27 @@ function handleBuiltinResponse(text) {
     } else {
       reply = "今日の天気データを確認中だよ。今日も良い一日になりますように！";
     }
-  } else if (/おはよう|朝/.test(text)) {
-    let weatherNote = "";
-    if (state.todayWeather) {
-      weatherNote = ` 今日は「${state.todayWeather.weather}」（最高${state.todayWeather.maxTemp}℃）の予報だよ。`;
+  } else if (/睡眠|眠り|スコア|寝た|体調/.test(text)) {
+    if (state.todaySleep) {
+      const s = state.todaySleep;
+      const scoreNote = s.score ? `（スコア${s.score}点）` : '';
+      let comment = '';
+      if (parseInt(s.score || '0', 10) >= 80) comment = ' しっかり眠れてるね！✨';
+      else if (s.durationMin > 0 && s.durationMin < 360) comment = ' 少し短めだったから無理しないでね🍵';
+      reply = `昨夜の睡眠時間は「${s.durationText}」${scoreNote}だったよ、きのぴぃ！${comment}`;
+    } else {
+      reply = "睡眠データを確認中だよ。今日も体調を一番に大事にしてね！";
     }
-    reply = `おはよう、きのぴぃ！${weatherNote}今日もマイペースにいこうね！`;
+  } else if (/おはよう|朝/.test(text)) {
+    let notes = [];
+    if (state.todayWeather) {
+      notes.push(`天気は「${state.todayWeather.weather}」（最高${state.todayWeather.maxTemp}℃）`);
+    }
+    if (state.todaySleep && state.todaySleep.durationText) {
+      notes.push(`睡眠は${state.todaySleep.durationText}`);
+    }
+    const noteStr = notes.length > 0 ? ` 今日は${notes.join('・')}だよ。` : ' ';
+    reply = `おはよう、きのぴぃ！${noteStr}今日もマイペースにいこうね！`;
   } else if (text.includes("進捗") || text.includes("予定") || text.includes("タスク")) {
     let extraWeather = state.todayWeather ? ` 天気は「${state.todayWeather.weather}」（最高${state.todayWeather.maxTemp}℃）だよ。` : "";
     reply = `タスクの確認だね！上のKumapyステータスバーをタップするか更新ボタンを押してみてね。${extraWeather}`;
@@ -2203,15 +2225,14 @@ async function fetchKumapyTasks() {
     }
   }
 
-  // 日付変更時に天気データを1日1回自動更新
+  // 日付変更時に日次コンテキスト（天気・睡眠）を1日1回自動更新
   const todayYmd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-  if (!state.todayWeather || state.weatherFetchDate !== todayYmd) {
-    fetchWeatherData().catch(e => console.warn("Background weather fetch failed:", e));
+  if (!state.dailyContextFetchDate || state.dailyContextFetchDate !== todayYmd) {
+    fetchDailyContext().catch(e => console.warn("Background daily context fetch failed:", e));
   }
 }
 
 // 🌤️ Weather データ取得（Metrics スプレッドシート - Weatherタブ）
-// ※ 元データが朝1回記録される仕様のため、起動時または日付変更時の1日1回のみ取得（キャッシュ）
 async function fetchWeatherData(force = false) {
   const today = new Date();
   const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -2253,13 +2274,62 @@ async function fetchWeatherData(force = false) {
         precipitation: matchedRow[7] || '0.0'
       };
       state.weatherFetchDate = ymd;
-      console.log('PWA Weather data loaded:', state.todayWeather);
     }
     return state.todayWeather;
   } catch (err) {
     console.warn('fetchWeatherData error:', err);
     return null;
   }
+}
+
+// 😴 Sleep データ取得（Metrics スプレッドシート - Sleepタブ）
+async function fetchSleepData(force = false) {
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${METRICS_CONFIG.sheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.sleepSheetName}`;
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const csvText = await res.text();
+    const rows = parseCsv(csvText);
+    if (rows.length <= 1) return null;
+
+    const lastRow = rows[rows.length - 1];
+    if (lastRow && lastRow.length >= 3) {
+      const durationMin = parseInt(lastRow[2] || 0, 10);
+      const h = Math.floor(durationMin / 60);
+      const m = durationMin % 60;
+      state.todaySleep = {
+        date: lastRow[0],
+        score: lastRow[1] || '',
+        durationMin: durationMin,
+        durationText: h > 0 ? `${h}時間${m}分` : `${m}分`,
+        efficiency: lastRow[7] || ''
+      };
+      console.log('PWA Sleep data loaded:', state.todaySleep);
+    }
+    return state.todaySleep;
+  } catch (err) {
+    console.warn('fetchSleepData error:', err);
+    return null;
+  }
+}
+
+// 📦 日次サマリ一括取得・キャッシュ（1日1回）
+async function fetchDailyContext(force = false) {
+  const today = new Date();
+  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  if (!force && state.dailyContextFetchDate === ymd) {
+    return;
+  }
+
+  await Promise.allSettled([
+    fetchWeatherData(force),
+    fetchSleepData(force)
+  ]);
+
+  state.dailyContextFetchDate = ymd;
+  console.log('PWA DailyContext fully cached for', ymd);
 }
 
 // ==========================================
