@@ -423,13 +423,30 @@ function setupEventListeners() {
     });
   }
 
-  // キャラクター（アバター本体）タップでシンプルモード切替（アバターのみ / メッセージ復活）
+  // キャラクター（アバター本体）タップでシンプルモード切替 / ダブルクリック（ダブルタップ）でチャット画面を開く
+  let lastMascotTapTime = 0;
   if (elements.mascotTouchArea) {
     elements.mascotTouchArea.addEventListener("click", (e) => {
-      // 予定バーや吹き出し、ボタンのクリック時は除外
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("#mascot-floating-bubble") || e.target.closest("button")) return;
+      // 予定バーや吹き出し、湯気バッジ、ボタンのクリック時は除外
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("#mascot-floating-bubble") || e.target.closest("#mascot-mini-badge") || e.target.closest("button")) return;
       e.stopPropagation();
       toggleSimpleMode();
+    });
+
+    elements.mascotTouchArea.addEventListener("dblclick", (e) => {
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      e.stopPropagation();
+      openChatPanel();
+    });
+
+    elements.mascotTouchArea.addEventListener("touchend", (e) => {
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      const now = Date.now();
+      if (now - lastMascotTapTime < 350 && now - lastMascotTapTime > 0) {
+        e.preventDefault();
+        openChatPanel();
+      }
+      lastMascotTapTime = now;
     });
   }
 
