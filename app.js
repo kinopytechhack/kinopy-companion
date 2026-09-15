@@ -2788,14 +2788,33 @@ function saveSettings(showBubble = true) {
 // ==========================================
 
 /**
- * JSONP通信ヘルパー（iOS SafariのCORS・リダイレクト制限を完全回避）
+ * GAS クラウド通信ヘルパー（fetch と JSONP のハイブリッドで 100% 確実に通信）
  */
-function fetchGasJsonp(action, paramsObj = {}) {
-  return new Promise((resolve, reject) => {
-    if (!state.syncGasUrl) {
-      return reject(new Error("No syncGasUrl"));
-    }
+async function fetchGasJsonp(action, paramsObj = {}) {
+  if (!state.syncGasUrl) {
+    throw new Error("No syncGasUrl");
+  }
 
+  // 1. まず標準の fetch で試行
+  try {
+    const params = new URLSearchParams(Object.assign({}, paramsObj, { action: action }));
+    const url = `${state.syncGasUrl}?${params.toString()}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        return data;
+      }
+    }
+  } catch (fetchErr) {
+    // fetch が CORS やリダイレクトで失敗した場合は JSONP にフォールバック
+  }
+
+  // 2. JSONP によるフォールバック通信
+  return new Promise((resolve, reject) => {
     const callbackName = "gasCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
     const params = new URLSearchParams(Object.assign({}, paramsObj, {
       action: action,
@@ -2808,8 +2827,8 @@ function fetchGasJsonp(action, paramsObj = {}) {
 
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error("JSONP request timeout"));
-    }, 12000);
+      reject(new Error("GAS request timeout"));
+    }, 10000);
 
     function cleanup() {
       clearTimeout(timeout);
