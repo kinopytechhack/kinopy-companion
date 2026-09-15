@@ -1928,26 +1928,41 @@ async function callGeminiApi(userPrompt) {
     contents: contents,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 1000,
-      thinkingConfig: { thinkingBudget: 50 }
+      maxOutputTokens: 1000
     }
   };
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  let data = null;
+  let lastErr = null;
 
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    for (const modelName of modelsToTry) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-    const data = await res.json();
+        const json = await res.json();
+        if (res.ok && !json.error) {
+          data = json;
+          break;
+        } else {
+          lastErr = json.error || new Error(`HTTP ${res.status}`);
+        }
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
     elements.aiStatusIndicator.classList.add("hidden");
 
-    if (data.error) {
-      console.error("Gemini Error:", data.error);
-      const errReply = `ごめんね、Geminiの通信でエラーが出ちゃった（${data.error.message || "エラー"}）。内蔵モードで答えるね。`;
+    if (!data) {
+      console.error("Gemini Error across all models:", lastErr);
+      const errReply = `ごめんね、Geminiの通信でエラーが出ちゃった（${lastErr?.message || "エラー"}）。内蔵モードで答えるね。`;
       addMessageBubble("bot", errReply, null, true);
       speak(errReply);
       return;
