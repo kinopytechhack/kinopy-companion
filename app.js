@@ -44,6 +44,8 @@ const state = {
   dailyContextFetchDate: null,
   dailyContextUpdatedAt: null,
   autoRefreshed930Date: null,
+  notifyHourly: localStorage.getItem("notify_hourly") !== "false",
+  lastHourlyChimeKey: null,
   isCoachingMode: false,
   coachingTurnCount: 0,
   
@@ -113,6 +115,7 @@ const elements = {
   voiceSpeaker: document.getElementById("voice-speaker"),
   voicePitch: document.getElementById("voice-pitch"),
   voiceRate: document.getElementById("voice-rate"),
+  notifyHourlyToggle: document.getElementById("notify-hourly-toggle"),
   pitchVal: document.getElementById("pitch-val"),
   rateVal: document.getElementById("rate-val"),
   btnVoicePreview: document.getElementById("btn-voice-preview"),
@@ -382,6 +385,7 @@ function loadSettingsToUI() {
   if (elements.voiceSpeaker) elements.voiceSpeaker.value = state.voiceSpeaker;
   if (elements.voicePitch) elements.voicePitch.value = state.voicePitch;
   if (elements.voiceRate) elements.voiceRate.value = state.voiceRate;
+  if (elements.notifyHourlyToggle) elements.notifyHourlyToggle.checked = state.notifyHourly;
   if (elements.pitchVal) elements.pitchVal.textContent = state.voicePitch.toFixed(1);
   if (elements.rateVal) elements.rateVal.textContent = state.voiceRate.toFixed(1);
   updateTokenDisplay();
@@ -2433,9 +2437,62 @@ function check930AutoRefresh() {
       state.autoRefreshed930Date = ymd;
     }
   }
+// 時間帯別の時報メッセージ生成
+function getHourlyChimeMessage(hour) {
+  const timeMessages = {
+    6: '朝の6時になりました！おはようございます、きのぴぃ！今日も爽やかにいこうね！',
+    7: '7時になりました！朝ごはんをしっかり食べて、元気に一日をスタートしましょう！',
+    8: '8時になりました！そろそろ始動ですね。マイペースにいきましょう！',
+    9: '9時になりました！今日も一日、集中して進めていきましょうね！',
+    10: '10時になりました！水分補給しながら、いいリズムでいこう！',
+    11: '11時になりました！お昼まであと少し、順調ですか？',
+    12: 'お昼の12時になりました！お昼ご飯を食べて、しっかりリフレッシュしてくださいね！',
+    13: '13時になりました！午後も気負わず、スマートに進めていこう！',
+    14: '14時になりました！少し眠気が出る時間かも。背伸びして深呼吸してみてね。',
+    15: '15時になりました！おやつの時間ですよ〜🍪 軽く一息つきましょう！',
+    16: '16時になりました！夕方まであと一踏ん張り、応援してますよ！',
+    17: '17時になりました！そろそろ一日のまとめの時間ですね。',
+    18: '18時になりました！今日も一日お疲れさまでした！',
+    19: '19時になりました！夜の時間ですね。美味しい晩ご飯食べてね！',
+    20: '20時になりました！ゆっくりリラックスして、自分の時間を楽しんでね。',
+    21: '21時になりました！夜も更けてきましたね。無理せずのんびり過ごしてね。',
+    22: '22時になりました！今日もお疲れさま。そろそろお風呂で温まろう♨️',
+    23: '23時になりました！明日に備えて、そろそろ睡眠の準備をしようね。',
+    0: '夜の12時になりました！夜更かしは禁物、温かくして寝てね🛌',
+    1: '深夜1時になりました。画面を閉じて、ぐっすり休んでくださいね。',
+    2: '深夜2時ですよ！明日のためにも早く寝ましょうね。',
+    3: '深夜3時です！しっかり体を休めてね。',
+    4: '早朝4時です。朝までぐっすり眠れますように。',
+    5: '朝の5時になりました！早起きですね、きのぴぃ！'
+  };
+  return timeMessages[hour] || `${hour}時になりましたよ、きのぴぃ！一息つきながらいこうね。`;
 }
 
-setInterval(check930AutoRefresh, 60 * 1000);
+// 定期実行ティッカー（9:30自動更新 ＆ 毎正時時報）
+function checkScheduledTicker() {
+  const now = new Date();
+  const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const hour = now.getHours();
+  const minutes = now.getMinutes();
+
+  // 1. 9:30 自動更新チェック
+  check930AutoRefresh();
+
+  // 2. 毎正時の時報チェック
+  if (state.notifyHourly && minutes === 0) {
+    const chimeKey = `${ymd}_${hour}`;
+    if (state.lastHourlyChimeKey !== chimeKey) {
+      state.lastHourlyChimeKey = chimeKey;
+      const chimeMsg = getHourlyChimeMessage(hour);
+      showPwaFloatingBubble(chimeMsg);
+      setPwaAvatarCut("speaking", 5000);
+      speakWithVoice(chimeMsg);
+      console.log(`⏰ PWA Hourly chime triggered for ${hour}:00:`, chimeMsg);
+    }
+  }
+}
+
+setInterval(checkScheduledTicker, 60 * 1000);
 
 // ==========================================
 // 設定保存
@@ -2451,6 +2508,9 @@ function saveSettings(showBubble = true) {
   state.voiceSpeaker = elements.voiceSpeaker.value;
   state.voicePitch = parseFloat(elements.voicePitch.value);
   state.voiceRate = parseFloat(elements.voiceRate.value);
+  if (elements.notifyHourlyToggle) {
+    state.notifyHourly = elements.notifyHourlyToggle.checked;
+  }
 
   localStorage.setItem("gemini_enabled", state.geminiEnabled);
   localStorage.setItem("gemini_api_key", state.geminiApiKey);
@@ -2460,6 +2520,7 @@ function saveSettings(showBubble = true) {
   localStorage.setItem("voice_speaker", state.voiceSpeaker);
   localStorage.setItem("voice_pitch", state.voicePitch);
   localStorage.setItem("voice_rate", state.voiceRate);
+  localStorage.setItem("notify_hourly", state.notifyHourly);
 
   updateBadgeState();
   if (showBubble) {
