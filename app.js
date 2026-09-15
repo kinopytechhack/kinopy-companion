@@ -21,6 +21,11 @@ const savedSyncUrl = localStorage.getItem("companion_sync_gas_url");
 const syncGasUrl = (!savedSyncUrl || savedSyncUrl.includes("AKfycbx") || savedSyncUrl.includes("AKfycbz")) ? DEFAULT_SYNC_GAS_URL : savedSyncUrl;
 localStorage.setItem("companion_sync_gas_url", syncGasUrl);
 
+const METRICS_CONFIG = {
+  sheetId: '1KaMsdvgVBvPku45Ut65VApzm5Mk_ggb8ZMNGsU84iHE',
+  weatherSheetName: 'Weather'
+};
+
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
@@ -31,6 +36,10 @@ const state = {
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
+  todayWeather: null,
+  weatherFetchDate: null,
+  isCoachingMode: false,
+  coachingTurnCount: 0,
   
   // トークン消費集計
   todayTokens: parseInt(localStorage.getItem("gemini_today_tokens") || "0", 10),
@@ -1586,12 +1595,21 @@ async function handleUserSend() {
   // メモ保存待機モードのハンドリング
   if (state.waitingForMemo) {
     state.waitingForMemo = false;
-    elements.userInput.placeholder = "メッセージを入力...";
+    elements.userInput.placeholder = state.isCoachingMode ? "💡 モヤモヤしていることを話してみて..." : "メッセージを入力...";
     addMessageBubble("user", text, null, true);
     await new Promise(r => setTimeout(r, 200));
     addMemo(text);
     speak("メモを保存しました！");
     return;
+  }
+
+  // モヤモヤ壁打ちモード中の終了検知
+  if (state.isCoachingMode) {
+    state.coachingTurnCount++;
+    if (/^(ありがとう|スッキリした|解決した|また後で|整理できた|大丈夫|ok|おわり|終わり|サンキュー)/i.test(text)) {
+      state.isCoachingMode = false;
+      elements.userInput.placeholder = "メッセージを入力...";
+    }
   }
 
   addMessageBubble("user", text, null, true);
@@ -1616,9 +1634,21 @@ async function callGeminiApi(userPrompt) {
     parts: [{ text: m.text }]
   }));
 
+  const weatherLine = state.todayWeather ? 
+    `\n- 本日の気象 (${state.todayWeather.location}): ${state.todayWeather.weather} (最高 ${state.todayWeather.maxTemp}℃ / 最低 ${state.todayWeather.minTemp}℃, 降水 ${state.todayWeather.precipitation}mm)` : 
+    '';
+
+  const coachingInstruction = state.isCoachingMode ? `
+【現在：思考整理・モヤモヤ壁打ちモード進行中】
+- あなたは今、きのぴぃの思考の整理・モヤモヤ解消を助けるコーチ・壁打ち相手です。
+- ユーザーの話を受け止めて共感し、思考をほぐす客観的な問いかけ（「一番引っかかっているのは何？」「本当はどうなると最高？」など）を1つだけ投げかけてください。
+- もしユーザーの思考がまとまってきた時や、要約・解決策を求めている時は、スッキリ3行以内の箇条書き（【要点整理】現状・ボトルネック・次の最小の1歩）でまとめ、メモ保存を勧めてください。` : '';
+
+  const dynamicPrompt = `${DEFAULT_SYSTEM_PROMPT}${weatherLine}${coachingInstruction}`;
+
   const payload = {
     system_instruction: {
-      parts: [{ text: DEFAULT_SYSTEM_PROMPT }]
+      parts: [{ text: dynamicPrompt }]
     },
     contents: contents,
     generationConfig: {
@@ -1673,8 +1703,25 @@ function handleBuiltinResponse(text) {
   let reply = "";
   if (text.includes("おつかれ") || text.includes("疲れた") || text.includes("つかれた") || text.includes("もう無理")) {
     reply = "きのぴぃ、本当にお疲れさま！無理は禁物だよ。温かい飲み物でも飲んで、サウナに入った気分で深呼吸しよ！";
+  } else if (/天気|気温|雨|晴れ|傘|暑い|寒い/.test(text)) {
+    if (state.todayWeather) {
+      const w = state.todayWeather;
+      let note = "";
+      if (w.weather.includes("雨")) note = " 傘を忘れないでね☔️";
+      else if (parseFloat(w.maxTemp) >= 30) note = " 水分補給をしっかりね☀️";
+      reply = `今日の${w.location}の天気は「${w.weather}」、予想気温は最高${w.maxTemp}℃ / 最低${w.minTemp}℃だよ！${note}`;
+    } else {
+      reply = "今日の天気データを確認中だよ。今日も良い一日になりますように！";
+    }
+  } else if (/おはよう|朝/.test(text)) {
+    let weatherNote = "";
+    if (state.todayWeather) {
+      weatherNote = ` 今日は「${state.todayWeather.weather}」（最高${state.todayWeather.maxTemp}℃）の予報だよ。`;
+    }
+    reply = `おはよう、きのぴぃ！${weatherNote}今日もマイペースにいこうね！`;
   } else if (text.includes("進捗") || text.includes("予定") || text.includes("タスク")) {
-    reply = "タスクの確認だね！上のKumapyステータスバーをタップするか更新ボタンを押してみてね。";
+    let extraWeather = state.todayWeather ? ` 天気は「${state.todayWeather.weather}」（最高${state.todayWeather.maxTemp}℃）だよ。` : "";
+    reply = `タスクの確認だね！上のKumapyステータスバーをタップするか更新ボタンを押してみてね。${extraWeather}`;
   } else if (text.includes("メモ")) {
     reply = "メモを残したい時は『メモ: 内容』って言ってくれれば、ぼくがしっかり保管しておくよ！";
   } else if (text.includes("ありがとう") || text.includes("助かる")) {
@@ -1758,13 +1805,17 @@ async function handleQuickAction(action) {
   const item = quickPrompts[action];
   if (!item) return;
 
-  if (action === "snack") {
+  if (action === "coach") {
+    state.isCoachingMode = true;
+    state.coachingTurnCount = 0;
+    setAvatarCut("worried", 5000);
+    elements.userInput.placeholder = "💡 モヤモヤしていることを話してみて...";
+    elements.userInput.focus();
+  } else if (action === "snack") {
     setAvatarCut("snack", 6000);
   } else if (action === "tired") {
     setAvatarCut("sleepy", 8000);
     startTimer(15);
-  } else if (action === "coach") {
-    setAvatarCut("worried", 5000);
   }
 
   addMessageBubble("user", item.label, null, true);
@@ -1787,8 +1838,15 @@ async function handleQuickAction(action) {
         contents[contents.length - 1].parts[0].text = item.prompt;
       }
 
+      const weatherLine = state.todayWeather ? 
+        `\n- 本日の気象 (${state.todayWeather.location}): ${state.todayWeather.weather} (最高 ${state.todayWeather.maxTemp}℃ / 最低 ${state.todayWeather.minTemp}℃, 降水 ${state.todayWeather.precipitation}mm)` : 
+        '';
+      const coachingInstruction = `
+【現在：思考整理・モヤモヤ壁打ちモード開始】
+- きのぴぃがモヤモヤしていると言ってきました。親友として優しく受け止め、「どうしたの？何でも話してね、きのぴぃ。今どんなことでモヤモヤしてる？まとまってなくてもいいから教えて！」という趣旨で、思考の吐き出しを促す温かい問いかけを1〜2文（60文字以内）で返してください。「きのぴぃ」と呼びかけてください。`;
+
       const payload = {
-        system_instruction: { parts: [{ text: DEFAULT_SYSTEM_PROMPT }] },
+        system_instruction: { parts: [{ text: `${DEFAULT_SYSTEM_PROMPT}${weatherLine}${coachingInstruction}` }] },
         contents: contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 50 } }
       };
@@ -2143,6 +2201,64 @@ async function fetchKumapyTasks() {
     if (elements.btnKumapyRefresh) {
       setTimeout(() => elements.btnKumapyRefresh.classList.remove("spinning"), 400);
     }
+  }
+
+  // 日付変更時に天気データを1日1回自動更新
+  const todayYmd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  if (!state.todayWeather || state.weatherFetchDate !== todayYmd) {
+    fetchWeatherData().catch(e => console.warn("Background weather fetch failed:", e));
+  }
+}
+
+// 🌤️ Weather データ取得（Metrics スプレッドシート - Weatherタブ）
+// ※ 元データが朝1回記録される仕様のため、起動時または日付変更時の1日1回のみ取得（キャッシュ）
+async function fetchWeatherData(force = false) {
+  const today = new Date();
+  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  if (!force && state.weatherFetchDate === ymd && state.todayWeather) {
+    return state.todayWeather;
+  }
+
+  try {
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${METRICS_CONFIG.sheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.weatherSheetName}`;
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const csvText = await res.text();
+    const rows = parseCsv(csvText);
+    if (rows.length <= 1) return null;
+
+    let matchedRow = null;
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const r = rows[i];
+      if (r[0] === ymd) {
+        matchedRow = r;
+        break;
+      }
+    }
+    if (!matchedRow && rows.length > 1) {
+      matchedRow = rows[rows.length - 1];
+    }
+
+    if (matchedRow) {
+      state.todayWeather = {
+        date: matchedRow[0] || ymd,
+        location: (matchedRow[1] || '川崎市').replace(/^\(参考\)/, ''),
+        maxTemp: matchedRow[2] || '',
+        minTemp: matchedRow[3] || '',
+        humidity: matchedRow[4] || '',
+        pressure: matchedRow[5] || '',
+        weather: matchedRow[6] || '晴れ',
+        precipitation: matchedRow[7] || '0.0'
+      };
+      state.weatherFetchDate = ymd;
+      console.log('PWA Weather data loaded:', state.todayWeather);
+    }
+    return state.todayWeather;
+  } catch (err) {
+    console.warn('fetchWeatherData error:', err);
+    return null;
   }
 }
 
