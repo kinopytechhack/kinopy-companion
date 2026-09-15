@@ -137,54 +137,34 @@ body {
   pointer-events: none;
 }
 
-.mascot-status-dot {
-  position: absolute;
-  bottom: 8px;
-  right: 12px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #22c55e;
-  border: 3px solid #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.mascot-tap-hint {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1.5px solid #E8E1D3;
-  color: #574c3e;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 18px;
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  animation: pulse 2.5s infinite ease-in-out;
-}
-
-/* 下部横長1行予定枠 (PWA用) */
+/* 下部横長1行予定枠 (PWA用・案B: ナチュラル・手帳付箋タグ風) */
 .mascot-task-bar {
   width: 90%;
   max-width: 320px;
   min-height: 38px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid #dcd3c4;
-  border-radius: 19px;
+  background: #F7F2EA;
+  border: 1.5px dashed #B8A99A;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 14px;
   font-size: 13px;
   font-weight: 700;
-  color: #3f362c;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  color: #4A3F35;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
   z-index: 10;
+  overflow: hidden;
+  position: relative;
 }
 
+.mascot-task-bar:hover,
 .mascot-task-bar:active {
-  transform: scale(0.97);
-  background: #ffffff;
+  background: #FFFDF9;
+  border-color: #8C7B6C;
+  transform: scale(0.98);
 }
 
 .mascot-task-bar .char-task-icon {
