@@ -1649,13 +1649,11 @@ function registerLogDate(ymd) {
 }
 
 function findPreviousLogDate(currentDate) {
-  const curYmd = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
-  const olderDates = state.allLogDates.filter(d => d < curYmd).sort().reverse();
-  if (olderDates.length === 0) return null;
-  const targetYmd = olderDates[0];
-  const [y, m, d] = targetYmd.split("-").map(n => parseInt(n, 10));
-  const dateObj = new Date(y, m - 1, d);
-  return { dateObj, ymd: targetYmd, dateStr: formatDateLabel(dateObj) };
+  const cur = new Date(currentDate.getTime());
+  cur.setHours(0, 0, 0, 0);
+  const prev = new Date(cur.getTime() - 24 * 60 * 60 * 1000);
+  const ymd = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}-${String(prev.getDate()).padStart(2, "0")}`;
+  return { dateObj: prev, ymd: ymd, dateStr: formatDateLabel(prev) };
 }
 
 function updateLoadPrevButton() {
@@ -1664,46 +1662,63 @@ function updateLoadPrevButton() {
   if (prevInfo) {
     btnLoadPrevChatEl.disabled = false;
     btnLoadPrevChatEl.textContent = `過去のチャットを読み込む (${prevInfo.dateStr})`;
-    loadPrevContainerEl.classList.remove("hidden");
+    if (loadPrevContainerEl) loadPrevContainerEl.classList.remove("hidden");
   } else {
     btnLoadPrevChatEl.disabled = true;
     btnLoadPrevChatEl.textContent = "これ以上過去のチャットはありません";
   }
 }
 
-function loadPreviousLog() {
+async function loadPreviousLog() {
   const prevInfo = findPreviousLogDate(state.oldestLoadedDate);
   if (!prevInfo) {
     updateLoadPrevButton();
     return;
   }
 
-  const logs = JSON.parse(localStorage.getItem(`companion_chat_${prevInfo.ymd}`) || "[]");
-  if (logs.length === 0) {
-    state.oldestLoadedDate = prevInfo.dateObj;
-    updateLoadPrevButton();
-    return;
+  if (btnLoadPrevChatEl) {
+    btnLoadPrevChatEl.disabled = true;
+    btnLoadPrevChatEl.textContent = "読み込み中...";
   }
 
-  const prevScrollHeight = elements.chatTimeline.scrollHeight;
-  const prevScrollTop = elements.chatTimeline.scrollTop;
-
-  const fragment = document.createDocumentFragment();
-  fragment.appendChild(createDateSeparatorElement(prevInfo.dateStr));
-  logs.forEach((msg) => {
-    fragment.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-  });
-
-  if (loadPrevContainerEl && loadPrevContainerEl.nextSibling) {
-    elements.chatTimeline.insertBefore(fragment, loadPrevContainerEl.nextSibling);
-  } else {
-    elements.chatTimeline.appendChild(fragment);
+  let logs = JSON.parse(localStorage.getItem(`companion_chat_${prevInfo.ymd}`) || "[]");
+  
+  // ローカルにない場合はクラウド（GAS）から取得
+  if (logs.length === 0 && state.syncGasUrl) {
+    try {
+      const data = await fetchGasJsonp("getLogs", { date: prevInfo.ymd });
+      if (data && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+        logs = data.messages.map(m => ({ role: m.role, text: m.text, time: m.time }));
+        localStorage.setItem(`companion_chat_${prevInfo.ymd}`, JSON.stringify(logs));
+        registerLogDate(prevInfo.ymd);
+      }
+    } catch (err) {
+      console.warn("fetch previous log from cloud error:", err);
+    }
   }
-
-  const newScrollHeight = elements.chatTimeline.scrollHeight;
-  elements.chatTimeline.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
 
   state.oldestLoadedDate = prevInfo.dateObj;
+
+  if (logs.length > 0) {
+    const prevScrollHeight = elements.chatTimeline.scrollHeight;
+    const prevScrollTop = elements.chatTimeline.scrollTop;
+
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(createDateSeparatorElement(prevInfo.dateStr));
+    logs.forEach((msg) => {
+      fragment.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+    });
+
+    if (loadPrevContainerEl && loadPrevContainerEl.nextSibling) {
+      elements.chatTimeline.insertBefore(fragment, loadPrevContainerEl.nextSibling);
+    } else {
+      elements.chatTimeline.appendChild(fragment);
+    }
+
+    const newScrollHeight = elements.chatTimeline.scrollHeight;
+    elements.chatTimeline.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+  }
+
   updateLoadPrevButton();
 }
 
