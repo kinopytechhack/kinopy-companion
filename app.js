@@ -159,6 +159,15 @@ const elements = {
 let btnLoadPrevChatEl = null;
 let loadPrevContainerEl = null;
 
+// 1日の論理日付（朝6時基準: 00:00〜05:59は前日扱い）
+function getTodayYmd(date = new Date()) {
+  const d = new Date(date.getTime());
+  if (d.getHours() < 6) {
+    d.setDate(d.getDate() - 1);
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ==========================================
 // 初期化
 // ==========================================
@@ -1442,14 +1451,6 @@ function escapeHtml(str) {
 // ==========================================
 // 過去ログ読み込み & タイムライン構築
 // ==========================================
-function getTodayYmd(date = new Date()) {
-  const d = new Date(date.getTime());
-  // 朝6時前（00:00〜05:59）なら前日扱い
-  if (d.getHours() < 6) {
-    d.setDate(d.getDate() - 1);
-  }
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function formatDateLabel(dateObj) {
   const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
@@ -2222,7 +2223,7 @@ async function fetchKumapyTasks() {
 
   try {
     const today = new Date();
-    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const ymd = getTodayYmd(today);
     const nowHm = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
 
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=CalendarEventsKumapy`;
@@ -2339,7 +2340,7 @@ async function fetchKumapyTasks() {
   }
 
   // 日付変更時に日次コンテキスト（天気・睡眠）を1日1回自動更新
-  const todayYmd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const todayYmd = getTodayYmd();
   if (!state.dailyContextFetchDate || state.dailyContextFetchDate !== todayYmd) {
     fetchDailyContext().catch(e => console.warn("Background daily context fetch failed:", e));
   }
@@ -2347,8 +2348,7 @@ async function fetchKumapyTasks() {
 
 // 🌤️ Weather データ取得（Metrics スプレッドシート - Weatherタブ）
 async function fetchWeatherData(force = false) {
-  const today = new Date();
-  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const ymd = getTodayYmd();
 
   if (!force && state.weatherFetchDate === ymd && state.todayWeather) {
     return state.todayWeather;
@@ -2429,8 +2429,7 @@ async function fetchSleepData(force = false) {
 
 // 📦 日次サマリ一括取得・キャッシュ（1日1回）
 async function fetchDailyContext(force = false) {
-  const today = new Date();
-  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const ymd = getTodayYmd();
 
   if (!force && state.dailyContextFetchDate === ymd) {
     return;
