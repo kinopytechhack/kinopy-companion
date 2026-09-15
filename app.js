@@ -433,13 +433,10 @@ function setupEventListeners() {
     });
   }
 
-  // Kumapy を別ウィンドウで開く
+  // Kumapy WebApp を別ウィンドウで開く
   const openKumapyInBrowser = () => {
-    let sheetId = state.kumapyUrl.trim();
-    const match = sheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (match) sheetId = match[1];
-    const targetUrl = sheetId.startsWith("http") ? sheetId : `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
-    window.open(targetUrl, "_blank");
+    const kumapyWebAppUrl = "https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10";
+    window.open(kumapyWebAppUrl, "_blank");
   };
 
   // タスク枠タップで Kumapy を別ウィンドウで開く
