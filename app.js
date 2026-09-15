@@ -1148,9 +1148,20 @@ function hidePwaFloatingBubble(immediate = false) {
   }
 }
 
+const TASK_PLAY_ICON_SVG = '<svg class="task-play-svg" viewBox="0 0 24 24" width="13" height="13" fill="#4A3F35" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M7 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L8.54 5.98C7.87 5.55 7 6.03 7 6.82z"/></svg>';
+
+function renderPwaTaskIcon(el, icon) {
+  if (!el) return;
+  if (icon === '▶️' || icon === '▶') {
+    el.innerHTML = TASK_PLAY_ICON_SVG;
+  } else {
+    el.textContent = icon;
+  }
+}
+
 // アバター下の横長1行予定枠の更新 (PWA用)
 function updatePwaCharacterTaskBar(icon, text, title = "") {
-  if (elements.pwaCharTaskIcon) elements.pwaCharTaskIcon.textContent = icon;
+  if (elements.pwaCharTaskIcon) renderPwaTaskIcon(elements.pwaCharTaskIcon, icon);
   if (elements.pwaCharTaskText) elements.pwaCharTaskText.textContent = text;
   if (elements.mascotTaskBar && title) elements.mascotTaskBar.title = title;
 }
@@ -2069,7 +2080,7 @@ async function fetchKumapyTasks() {
     if (running) {
       const text = `${running.title} (${running.actStartHm || "実行中"}〜)`;
       const title = `【進行中タスク】${running.title}\n開始: ${running.actStartHm || ""}`;
-      elements.kumapyIcon.textContent = "▶️";
+      if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "▶️");
       elements.kumapyText.textContent = text;
       elements.kumapyStatusBar.title = title;
       updatePwaCharacterTaskBar("▶️", text, title);
@@ -2080,7 +2091,7 @@ async function fetchKumapyTasks() {
       const countSuffix = remaining.length > 1 ? ` (残${remaining.length}件)` : "";
       const text = `${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
       const title = `【${isWindow ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
-      elements.kumapyIcon.textContent = icon;
+      if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, icon);
       elements.kumapyText.textContent = text;
       elements.kumapyStatusBar.title = title;
       updatePwaCharacterTaskBar(icon, text, title);
@@ -2089,14 +2100,14 @@ async function fetchKumapyTasks() {
         const countSuffix = remaining.length > 1 ? ` 他${remaining.length - 1}件` : "";
         const text = `${remaining[0].title}${countSuffix}`;
         const title = `本日残りタスク: ${remaining.length}件`;
-        elements.kumapyIcon.textContent = "📋";
+        if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "📋");
         elements.kumapyText.textContent = text;
         elements.kumapyStatusBar.title = title;
         updatePwaCharacterTaskBar("📋", text, title);
       } else {
         const text = "本日のタスク完了！";
         const title = "すべての予定・タスクが完了しています";
-        elements.kumapyIcon.textContent = "🎉";
+        if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "🎉");
         elements.kumapyText.textContent = text;
         elements.kumapyStatusBar.title = title;
         updatePwaCharacterTaskBar("🎉", text, title);
@@ -2104,7 +2115,7 @@ async function fetchKumapyTasks() {
     }
   } catch (err) {
     console.warn("fetchKumapyTasks error:", err);
-    elements.kumapyIcon.textContent = "⚠️";
+    if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "⚠️");
     elements.kumapyText.textContent = "Kumapy未接続 (タップで確認)";
     elements.kumapyStatusBar.title = `通信エラー: ${err.message}`;
     updatePwaCharacterTaskBar("⚠️", "Kumapy未接続 (タップで確認)", `通信エラー: ${err.message}`);
