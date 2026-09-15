@@ -407,6 +407,21 @@ function setupEventListeners() {
       fetchKumapyTasks();
       syncFromCloud();
     });
+
+    elements.mascotTaskBar.addEventListener("mouseenter", () => {
+      const textEl = elements.pwaCharTaskText;
+      if (textEl && textEl.scrollWidth > textEl.clientWidth) {
+        const scrollDist = textEl.scrollWidth - textEl.clientWidth + 16;
+        const duration = Math.max(3.5, scrollDist / 35);
+        textEl.style.setProperty("--scroll-dist", `-${scrollDist}px`);
+        textEl.style.animation = `taskTextScrollDynamic ${duration}s ease-in-out infinite alternate`;
+      }
+    });
+    elements.mascotTaskBar.addEventListener("mouseleave", () => {
+      if (elements.pwaCharTaskText) {
+        elements.pwaCharTaskText.style.animation = "none";
+      }
+    });
   }
   if (elements.headerAvatarBtn) {
     elements.headerAvatarBtn.addEventListener("click", (e) => {

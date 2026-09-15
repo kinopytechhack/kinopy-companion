@@ -190,6 +190,7 @@ body {
 .mascot-task-bar .char-task-icon {
   font-size: 14px;
   flex-shrink: 0;
+  z-index: 2;
 }
 
 .mascot-task-bar .char-task-text {
@@ -197,6 +198,16 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  display: inline-block;
+}
+
+@keyframes taskTextScrollDynamic {
+  0%, 25% {
+    transform: translateX(0);
+  }
+  75%, 100% {
+    transform: translateX(var(--scroll-dist, -40px));
+  }
 }
 
 /* 独り言・予定通知用ミニ吹き出し (PWA用・常時表示) */
