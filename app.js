@@ -1050,7 +1050,7 @@ async function processRecordedAudio(audioBlob, mimeType) {
       reader.onloadend = async () => {
         try {
           const base64Data = reader.result.split(",")[1];
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
 
           const prompt = `ユーザー（きのぴぃ）からの音声録音メッセージです。
 以下の手順で処理してください：
@@ -1185,9 +1185,30 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
   const res = await fetch(webApiUrl);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  const audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl || data.audioStatusUrl;
+  let audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl;
 
-  if (!audioUrl) throw new Error("No audio URL");
+  if (!audioUrl && data.audioStatusUrl) {
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 300));
+      try {
+        const sRes = await fetch(data.audioStatusUrl);
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.isAudioReady && (sData.mp3StreamingUrl || sData.mp3DownloadUrl)) {
+            audioUrl = sData.mp3StreamingUrl || sData.mp3DownloadUrl;
+            break;
+          }
+          if (sData.isAudioError) {
+            throw new Error(sData.errorMessage || "Audio generation failed");
+          }
+        }
+      } catch (pollErr) {
+        console.warn("PWA audio poll warning:", pollErr);
+      }
+    }
+  }
+
+  if (!audioUrl) throw new Error("No audio URL available");
 
   // 音声Blobを取得して完全バッファリング再生（途切れ防止＆安定化）
   let audioSrc = audioUrl;
@@ -1525,7 +1546,7 @@ function formatDateLabel(dateObj) {
 
 function initChatTimeline() {
   elements.chatTimeline.innerHTML = "";
-  state.oldestLoadedDate = new Date();
+  state.oldestLoadedDate = getLogicalDate();
 
   // 1. 最上部に過去ログ読み込みボタン
   loadPrevContainerEl = document.createElement("div");
@@ -1538,7 +1559,7 @@ function initChatTimeline() {
   elements.chatTimeline.appendChild(loadPrevContainerEl);
 
   // 2. 本日の日付セパレーター
-  elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(new Date())));
+  elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
 
   // 3. 本日のチャット読み込み
   const todayYmd = getTodayYmd();
@@ -1845,7 +1866,7 @@ async function callGeminiApi(userPrompt) {
     }
   };
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
 
   try {
     const res = await fetch(endpoint, {
@@ -2056,7 +2077,7 @@ async function handleQuickAction(action) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
