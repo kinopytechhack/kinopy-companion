@@ -450,8 +450,10 @@ function setupEventListeners() {
   // 画面開閉（マスコット単体画面 ↔ チャット画面）
   const openChatPanel = () => {
     unlockAudioContext();
-    if (elements.mascotScreen) elements.mascotScreen.classList.add("hidden");
-    if (elements.chatPanelScreen) elements.chatPanelScreen.classList.remove("hidden");
+    const mascotSc = document.getElementById("mascot-screen");
+    const chatSc = document.getElementById("chat-panel-screen");
+    if (mascotSc) mascotSc.classList.add("hidden");
+    if (chatSc) chatSc.classList.remove("hidden");
     state.isPanelOpen = true;
     if (window.clearPwaUnreadBadge) window.clearPwaUnreadBadge();
     hidePwaFloatingBubble(true);
@@ -460,8 +462,10 @@ function setupEventListeners() {
 
   const closeChatPanel = () => {
     unlockAudioContext();
-    if (elements.chatPanelScreen) elements.chatPanelScreen.classList.add("hidden");
-    if (elements.mascotScreen) elements.mascotScreen.classList.remove("hidden");
+    const mascotSc = document.getElementById("mascot-screen");
+    const chatSc = document.getElementById("chat-panel-screen");
+    if (chatSc) chatSc.classList.add("hidden");
+    if (mascotSc) mascotSc.classList.remove("hidden");
     state.isPanelOpen = false;
     showPwaFloatingBubble(lastBotSpeechText);
   };
@@ -469,43 +473,46 @@ function setupEventListeners() {
   const toggleSimpleMode = () => {
     state.isSimpleMode = !state.isSimpleMode;
     localStorage.setItem("companion_simple_mode", state.isSimpleMode);
-    if (elements.mascotScreen) {
-      elements.mascotScreen.classList.toggle("simple-mode", state.isSimpleMode);
+    const mascotSc = document.getElementById("mascot-screen");
+    if (mascotSc) {
+      mascotSc.classList.toggle("simple-mode", state.isSimpleMode);
     }
   };
 
-  if (state.isSimpleMode && elements.mascotScreen) {
-    elements.mascotScreen.classList.add("simple-mode");
+  if (state.isSimpleMode) {
+    const mascotSc = document.getElementById("mascot-screen");
+    if (mascotSc) mascotSc.classList.add("simple-mode");
   }
 
-  // マスコット画面タップでチャット画面を開く
-  if (elements.mascotScreen) {
-    elements.mascotScreen.addEventListener("click", (e) => {
-      // 予定バー、設定・音声ボタン、ミニバッジのクリック時は除外
+  // 1. マスコット画面全体タップでチャット画面を開く
+  const mascotSc = document.getElementById("mascot-screen");
+  if (mascotSc) {
+    mascotSc.addEventListener("click", (e) => {
       if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
       e.stopPropagation();
       openChatPanel();
     });
   }
 
-  // メッセージ吹き出しタップでチャット画面を開く
-  if (elements.mascotFloatingBubble) {
-    elements.mascotFloatingBubble.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openChatPanel();
-    });
-  }
+  // 2. アバター画像＆コンテナ＆吹き出しタップでチャット画面を開く
+  const avatarRing = document.querySelector(".mascot-avatar-ring");
+  const avatarImg = document.getElementById("mascot-avatar-img");
+  const avatarContainer = document.querySelector(".mascot-avatar-container");
+  const floatingBubble = document.getElementById("mascot-floating-bubble");
+  const touchArea = document.getElementById("mascot-touch-area");
 
-  // キャラクター（アバター領域・吹き出し）タップでチャット画面を開く
-  if (elements.mascotTouchArea) {
-    elements.mascotTouchArea.addEventListener("click", (e) => {
-      // 予定バー、設定・音声ボタンのクリック時は除外
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
-      e.stopPropagation();
-      openChatPanel();
-    });
+  [avatarRing, avatarImg, avatarContainer, floatingBubble, touchArea].forEach(el => {
+    if (el) {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
+        e.stopPropagation();
+        openChatPanel();
+      });
+    }
+  });
 
-    elements.mascotTouchArea.addEventListener("dblclick", (e) => {
+  if (touchArea) {
+    touchArea.addEventListener("dblclick", (e) => {
       if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
       e.stopPropagation();
       toggleSimpleMode();
