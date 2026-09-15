@@ -105,6 +105,17 @@ const elements = {
   archiveArrow: document.getElementById("archive-arrow"),
   headerAvatarBtn: document.getElementById("header-avatar-btn"),
   
+  // マスコット単体画面・チャット画面切り替え
+  mascotScreen: document.getElementById("mascot-screen"),
+  chatPanelScreen: document.getElementById("chat-panel-screen"),
+  mascotTouchArea: document.getElementById("mascot-touch-area"),
+  btnMascotSettings: document.getElementById("btn-mascot-settings"),
+  btnChatClose: document.getElementById("btn-chat-close"),
+  mascotAvatarImg: document.getElementById("mascot-avatar-img"),
+  mascotMiniBadge: document.getElementById("mascot-mini-badge"),
+  mascotFloatingBubble: document.getElementById("mascot-floating-bubble"),
+  mascotFloatingBubbleText: document.getElementById("mascot-floating-bubble-text"),
+
   // チャット検索
   chatSearchBar: document.getElementById("chat-search-bar"),
   chatSearchInput: document.getElementById("chat-search-input"),
@@ -363,6 +374,40 @@ function updateBadgeState() {
 // イベントリスナー設定
 // ==========================================
 function setupEventListeners() {
+  // 画面開閉（マスコット単体画面 ↔ チャット画面）
+  const openChatPanel = () => {
+    unlockAudioContext();
+    if (elements.mascotScreen) elements.mascotScreen.classList.add("hidden");
+    if (elements.chatPanelScreen) elements.chatPanelScreen.classList.remove("hidden");
+    state.isPanelOpen = true;
+    hidePwaFloatingBubble(true);
+    scrollToBottom();
+  };
+
+  const closeChatPanel = () => {
+    unlockAudioContext();
+    if (elements.chatPanelScreen) elements.chatPanelScreen.classList.add("hidden");
+    if (elements.mascotScreen) elements.mascotScreen.classList.remove("hidden");
+    state.isPanelOpen = false;
+  };
+
+  if (elements.mascotTouchArea) {
+    elements.mascotTouchArea.addEventListener("click", openChatPanel);
+  }
+  if (elements.btnChatClose) {
+    elements.btnChatClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeChatPanel();
+    });
+  }
+  if (elements.btnMascotSettings) {
+    elements.btnMascotSettings.addEventListener("click", (e) => {
+      e.stopPropagation();
+      loadSettingsToUI();
+      elements.settingsPanel.classList.remove("hidden");
+    });
+  }
+
   // 送信（クリック）
   elements.btnSend.addEventListener("click", () => {
     unlockAudioContext();
@@ -791,8 +836,12 @@ let currentCutOverride = null;
 let lipSyncTimer = null;
 
 function setAvatarCut(cutName, durationMs = 0) {
-  const avatarImg = document.getElementById("header-avatar-img");
-  if (!avatarImg) return;
+  const avatarImgs = [
+    document.getElementById("header-avatar-img"),
+    document.getElementById("mascot-avatar-img")
+  ].filter(Boolean);
+  if (avatarImgs.length === 0) return;
+
   const cutMap = {
     normal: "assets/01_normal.png",
     speaking: "assets/02_speaking.png",
@@ -803,7 +852,7 @@ function setAvatarCut(cutName, durationMs = 0) {
     wait: "assets/07_wait.png"
   };
   const src = cutMap[cutName] || "assets/01_normal.png";
-  avatarImg.src = src;
+  avatarImgs.forEach(img => { img.src = src; });
 
   if (durationMs > 0) {
     currentCutOverride = cutName;
@@ -811,7 +860,7 @@ function setAvatarCut(cutName, durationMs = 0) {
       if (currentCutOverride === cutName) {
         currentCutOverride = null;
         if (!state.isSpeaking) {
-          avatarImg.src = "assets/01_normal.png";
+          avatarImgs.forEach(img => { img.src = "assets/01_normal.png"; });
         }
       }
     }, durationMs);
@@ -820,7 +869,10 @@ function setAvatarCut(cutName, durationMs = 0) {
 
 function startLipSync() {
   stopLipSync();
-  const avatarImg = document.getElementById("header-avatar-img");
+  const avatarImgs = [
+    document.getElementById("header-avatar-img"),
+    document.getElementById("mascot-avatar-img")
+  ].filter(Boolean);
   let open = false;
   lipSyncTimer = setInterval(() => {
     if (!state.isSpeaking) {
@@ -828,8 +880,10 @@ function startLipSync() {
       return;
     }
     open = !open;
-    if (avatarImg && !currentCutOverride) {
-      avatarImg.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+    if (avatarImgs.length > 0 && !currentCutOverride) {
+      avatarImgs.forEach(img => {
+        img.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+      });
     }
   }, 180);
 }
@@ -839,9 +893,50 @@ function stopLipSync() {
     clearInterval(lipSyncTimer);
     lipSyncTimer = null;
   }
-  const avatarImg = document.getElementById("header-avatar-img");
-  if (avatarImg && !currentCutOverride) {
-    avatarImg.src = "assets/01_normal.png";
+  const avatarImgs = [
+    document.getElementById("header-avatar-img"),
+    document.getElementById("mascot-avatar-img")
+  ].filter(Boolean);
+  if (avatarImgs.length > 0 && !currentCutOverride) {
+    avatarImgs.forEach(img => {
+      img.src = "assets/01_normal.png";
+    });
+  }
+}
+
+// PWAミニフローティング吹き出し制御
+let pwaFloatingBubbleTimeout = null;
+let pwaFloatingBubbleHideTimeout = null;
+
+function showPwaFloatingBubble(text, durationMs = 5500) {
+  const bubbleEl = elements.mascotFloatingBubble;
+  const bubbleTextEl = elements.mascotFloatingBubbleText;
+  if (!bubbleEl || !bubbleTextEl) return;
+
+  if (pwaFloatingBubbleTimeout) clearTimeout(pwaFloatingBubbleTimeout);
+  if (pwaFloatingBubbleHideTimeout) clearTimeout(pwaFloatingBubbleHideTimeout);
+
+  bubbleTextEl.textContent = text;
+  bubbleEl.classList.remove("hidden", "fade-out");
+
+  pwaFloatingBubbleTimeout = setTimeout(() => {
+    hidePwaFloatingBubble(false);
+  }, durationMs);
+}
+
+function hidePwaFloatingBubble(immediate = false) {
+  const bubbleEl = elements.mascotFloatingBubble;
+  if (!bubbleEl) return;
+  if (pwaFloatingBubbleTimeout) clearTimeout(pwaFloatingBubbleTimeout);
+  if (pwaFloatingBubbleHideTimeout) clearTimeout(pwaFloatingBubbleHideTimeout);
+
+  if (immediate) {
+    bubbleEl.classList.add("hidden");
+  } else {
+    bubbleEl.classList.add("fade-out");
+    pwaFloatingBubbleHideTimeout = setTimeout(() => {
+      bubbleEl.classList.add("hidden");
+    }, 300);
   }
 }
 
@@ -2074,6 +2169,11 @@ function checkPwaMonologueTimer() {
 
     const text = monologues[Math.floor(Math.random() * monologues.length)];
     addMessageBubble("bot", text, null, true);
+
+    if (!state.isPanelOpen) {
+      showPwaFloatingBubble(text, 5500);
+    }
+
     if (state.voiceEnabled) {
       speak(text);
     }

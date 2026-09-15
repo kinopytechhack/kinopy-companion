@@ -9,92 +9,124 @@
   <title>カピパラさん - Kinopy Companion</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260915-1610">
+  <link rel="manifest" href="manifest.json?v=20260915-1616">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="カピパラさん">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1610">
-  <link rel="icon" href="assets/icon.png?v=20260915-1610">
-  <link rel="shortcut icon" href="favicon.ico?v=20260915-1610">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1616">
+  <link rel="icon" href="assets/icon.png?v=20260915-1616">
+  <link rel="shortcut icon" href="favicon.ico?v=20260915-1616">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260915-1610">
+  <link rel="stylesheet" href="style.css?v=20260915-1616">
 </head>
 <body>
   <div class="app-container">
     
-    <!-- 1. ヘッダー (Mac版完全同一) -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="avatar-wrapper" id="header-avatar-btn" title="相棒アバター（カピパラさん）">
-          <img src="assets/avatar_face_flipped.png" alt="カピパラさん" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.png'">
+    <!-- A. キャラクター単体画面（初期表示・Mac版コンパクト状態同等） -->
+    <div id="mascot-screen" class="mascot-screen">
+      <div class="mascot-top-bar">
+        <span class="mascot-app-title">カピパラさん</span>
+        <button id="btn-mascot-settings" class="mini-icon-btn" title="設定">⚙️</button>
+      </div>
+      
+      <div class="mascot-main-area" id="mascot-touch-area" title="タップしてチャットを開く">
+        <!-- 独り言・Kumapy予定通知用ミニ吹き出し -->
+        <div class="floating-bubble hidden" id="mascot-floating-bubble">
+          <div class="floating-bubble-text" id="mascot-floating-bubble-text"></div>
+          <div class="floating-bubble-tail"></div>
         </div>
-        <span class="panel-drag-title">カピパラさん</span>
-        <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
-      </div>
-      <div class="header-actions">
-        <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
-      </div>
-    </header>
 
-    <!-- 2. Kumapy 進行中タスク＆直近予定ステータスバー (Mac版完全同一) -->
-    <div class="kumapy-status-bar" id="kumapy-status-bar" title="クリックでKumapyを開く">
-      <div class="kumapy-status-main">
-        <span class="kumapy-icon" id="kumapy-icon">🎯</span>
-        <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
-      </div>
-      <button id="btn-kumapy-refresh" class="kumapy-refresh-btn" title="タスク更新">↻</button>
-    </div>
+        <div class="mascot-avatar-container">
+          <div class="mascot-avatar-ring">
+            <img src="assets/01_normal.png" alt="カピパラさん" id="mascot-avatar-img" class="mascot-avatar-img">
+          </div>
+          <div class="mascot-status-dot"></div>
+          <div class="mini-badge hidden" id="mascot-mini-badge">💬</div>
+        </div>
 
-    <!-- 3. チャット検索バー (常時表示・Mac版完全同一) -->
-    <div id="chat-search-bar" class="chat-search-bar">
-      <input type="text" id="chat-search-input" placeholder="チャットを検索..." />
-      <span id="chat-search-count" class="chat-search-count">0/0</span>
-      <button id="btn-search-prev" class="mini-search-btn" title="前の一致">▲</button>
-      <button id="btn-search-next" class="mini-search-btn" title="次の一致">▼</button>
-    </div>
-
-    <!-- 4. LINE風チャットタイムライン (Mac版完全同一) -->
-    <main class="chat-thread-container" id="chat-container">
-      <div id="pull-to-refresh" class="pull-to-refresh">
-        <div class="ptr-content">
-          <span class="ptr-icon">🔄</span>
-          <span class="ptr-text">下に引っ張って更新</span>
+        <div class="mascot-tap-hint">
+          <span>💬 タップしてチャットを開く</span>
         </div>
       </div>
-      <div class="chat-timeline" id="chat-timeline">
-        <!-- 過去ログ読み込みボタン & メッセージが動的に挿入されます -->
-      </div>
-      <div class="speech-status">
-        <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
-        <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
-        <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声聞き取り中...</span>
-        <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
-      </div>
-    </main>
-
-    <!-- 5. クイックアイコンバー (入力欄のすぐ上・左:📝💡🍪🛌 / 右:🎤📋🔊) -->
-    <div class="quick-actions-bar">
-      <div class="quick-actions-left">
-        <button class="quick-icon-btn" data-action="memo" title="📝 メモをチャットで入力">📝</button>
-        <button class="quick-icon-btn" data-action="coach" title="💡 モヤモヤ">💡</button>
-        <button class="quick-icon-btn" data-action="snack" title="🍪 おなか減った">🍪</button>
-        <button class="quick-icon-btn" data-action="tired" title="🛌 もう無理">🛌</button>
-      </div>
-      <div class="quick-actions-right">
-        <button id="btn-voice-input" class="quick-icon-btn voice-input-btn" title="🎤 音声入力 (クリックで録音開始/停止)">🎤</button>
-        <button id="btn-memo-manage" class="quick-icon-btn" title="📋 メモ管理を開く">📋</button>
-        <button id="btn-sound-toggle" class="quick-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
-      </div>
     </div>
 
-    <!-- 6. チャット入力欄 (Mac版完全同一) -->
-    <footer class="app-footer">
-      <div class="chat-input-area">
-        <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
-        <button id="btn-send" class="send-btn" title="送信">送信</button>
+    <!-- B. チャット画面（展開時表示） -->
+    <div id="chat-panel-screen" class="chat-panel-screen hidden">
+      <!-- 1. ヘッダー -->
+      <header class="app-header">
+        <div class="header-left">
+          <div class="avatar-wrapper" id="header-avatar-btn" title="タップでキャラ画面に戻る">
+            <img src="assets/avatar_face_flipped.png" alt="カピパラさん" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.png'">
+          </div>
+          <span class="panel-drag-title">カピパラさん</span>
+          <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+        </div>
+        <div class="header-actions">
+          <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
+          <button id="btn-chat-close" class="mini-icon-btn close-panel-btn" title="閉じる（キャラ画面に戻る）">▼</button>
+        </div>
+      </header>
+
+      <!-- 2. Kumapy 進行中タスク＆直近予定ステータスバー -->
+      <div class="kumapy-status-bar" id="kumapy-status-bar" title="クリックでKumapyを開く">
+        <div class="kumapy-status-main">
+          <span class="kumapy-icon" id="kumapy-icon">🎯</span>
+          <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
+        </div>
+        <button id="btn-kumapy-refresh" class="kumapy-refresh-btn" title="タスク更新">↻</button>
       </div>
-    </footer>
+
+      <!-- 3. チャット検索バー -->
+      <div id="chat-search-bar" class="chat-search-bar">
+        <input type="text" id="chat-search-input" placeholder="チャットを検索..." />
+        <span id="chat-search-count" class="chat-search-count">0/0</span>
+        <button id="btn-search-prev" class="mini-search-btn" title="前の一致">▲</button>
+        <button id="btn-search-next" class="mini-search-btn" title="次の一致">▼</button>
+      </div>
+
+      <!-- 4. LINE風チャットタイムライン -->
+      <main class="chat-thread-container" id="chat-container">
+        <div id="pull-to-refresh" class="pull-to-refresh">
+          <div class="ptr-content">
+            <span class="ptr-icon">🔄</span>
+            <span class="ptr-text">下に引っ張って更新</span>
+          </div>
+        </div>
+        <div class="chat-timeline" id="chat-timeline">
+          <!-- 過去ログ読み込みボタン & メッセージが動的に挿入されます -->
+        </div>
+        <div class="speech-status">
+          <span id="ai-status-indicator" class="ai-status-indicator hidden">✨ Gemini 思考中...</span>
+          <span id="speaking-indicator" class="speaking-indicator hidden">🔊 発話中...</span>
+          <span id="listening-indicator" class="listening-indicator hidden">🎙️ 音声聞き取り中...</span>
+          <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
+        </div>
+      </main>
+
+      <!-- 5. クイックアイコンバー (入力欄のすぐ上・左:📝💡🍪🛌 / 右:🎤📋🔊) -->
+      <div class="quick-actions-bar">
+        <div class="quick-actions-left">
+          <button class="quick-icon-btn" data-action="memo" title="📝 メモをチャットで入力">📝</button>
+          <button class="quick-icon-btn" data-action="coach" title="💡 モヤモヤ">💡</button>
+          <button class="quick-icon-btn" data-action="snack" title="🍪 おなか減った">🍪</button>
+          <button class="quick-icon-btn" data-action="tired" title="🛌 もう無理">🛌</button>
+        </div>
+        <div class="quick-actions-right">
+          <button id="btn-voice-input" class="quick-icon-btn voice-input-btn" title="🎤 音声入力 (クリックで録音開始/停止)">🎤</button>
+          <button id="btn-memo-manage" class="quick-icon-btn" title="📋 メモ管理を開く">📋</button>
+          <button id="btn-sound-toggle" class="quick-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
+        </div>
+      </div>
+
+      <!-- 6. チャット入力欄 -->
+      <footer class="app-footer">
+        <div class="chat-input-area">
+          <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
+          <button id="btn-send" class="send-btn" title="送信">送信</button>
+        </div>
+      </footer>
+    </div>
 
     <!-- 設定モーダル -->
     <div id="settings-panel" class="modal-overlay hidden">
@@ -208,6 +240,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260915-1610"></script>
+  <script src="app.js?v=20260915-1616"></script>
 </body>
 </html>
