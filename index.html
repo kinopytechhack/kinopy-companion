@@ -213,6 +213,11 @@
               <label for="voice-rate">速度: <span id="rate-val">1.0</span></label>
               <input type="range" id="voice-rate" min="0.5" max="1.5" step="0.1" value="1.0">
             </div>
+          <div class="form-divider" style="height:1px;background:rgba(0,0,0,0.06);margin:12px 0;"></div>
+          <div class="form-group">
+            <label>日次前提データ（天気・睡眠・朝刊）</label>
+            <button id="btn-refresh-daily-context" class="secondary-btn" type="button" style="width:100%;margin-top:6px;padding:8px 12px;font-size:13px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;cursor:pointer;font-weight:600;">🔄 日次コンテキストを最新化</button>
+            <div id="daily-context-status-text" style="font-size:11px;color:#64748b;margin-top:4px;text-align:center;"></div>
           </div>
           <button id="btn-save-settings" class="primary-btn">設定を保存</button>
         </div>

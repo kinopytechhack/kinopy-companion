@@ -114,6 +114,8 @@ const elements = {
   pitchVal: document.getElementById("pitch-val"),
   rateVal: document.getElementById("rate-val"),
   btnVoicePreview: document.getElementById("btn-voice-preview"),
+  btnRefreshDailyContext: document.getElementById("btn-refresh-daily-context"),
+  dailyContextStatusText: document.getElementById("daily-context-status-text"),
   todayTokensVal: document.getElementById("today-tokens-val"),
   totalTokensVal: document.getElementById("total-tokens-val"),
   memoActiveCount: document.getElementById("memo-active-count"),
@@ -681,6 +683,33 @@ function setupEventListeners() {
     elements.settingsPanel.classList.add("hidden");
   });
   elements.btnSaveSettings.addEventListener("click", () => saveSettings(true));
+
+  if (elements.btnRefreshDailyContext) {
+    elements.btnRefreshDailyContext.addEventListener("click", async () => {
+      const origText = elements.btnRefreshDailyContext.textContent;
+      elements.btnRefreshDailyContext.disabled = true;
+      elements.btnRefreshDailyContext.textContent = "🔄 データ取得中...";
+      if (elements.dailyContextStatusText) elements.dailyContextStatusText.textContent = "最新の天気・睡眠・朝刊を取得中...";
+
+      try {
+        await fetchDailyContext(true);
+        if (elements.dailyContextStatusText) {
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, '0');
+          const mm = String(now.getMinutes()).padStart(2, '0');
+          elements.dailyContextStatusText.textContent = `✅ 更新完了 (${hh}:${mm})`;
+        }
+        addMessageBubble("bot", "日次データ（天気・睡眠・朝刊）を最新の情報に更新したよ！", null, true);
+        speakWithVoice("日次データを最新の情報に更新しましたよ！");
+      } catch (err) {
+        console.warn("Failed to refresh daily context in PWA:", err);
+        if (elements.dailyContextStatusText) elements.dailyContextStatusText.textContent = "⚠️ 更新に失敗しました";
+      } finally {
+        elements.btnRefreshDailyContext.disabled = false;
+        elements.btnRefreshDailyContext.textContent = origText;
+      }
+    });
+  }
 
   // APIキーのリアルタイム自動保存
   const syncApiKey = (e) => {
