@@ -1148,12 +1148,32 @@ function hidePwaFloatingBubble(immediate = false) {
   }
 }
 
-const TASK_PLAY_ICON_SVG = '<svg class="task-play-svg" viewBox="0 0 24 24" width="13" height="13" fill="#4A3F35" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M7 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L8.54 5.98C7.87 5.55 7 6.03 7 6.82z"/></svg>';
+const TASK_ICON_SVGS = {
+  play: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="#4A3F35" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M7 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18c.62-.39.62-1.29 0-1.69L8.54 5.98C7.87 5.55 7 6.03 7 6.82z"/></svg>',
+  clock: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4A3F35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 16 14"/></svg>',
+  pin: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4A3F35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  list: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4A3F35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>',
+  done: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  warn: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#D97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  target: '<svg class="task-icon-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4A3F35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; display: inline-block; flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>'
+};
 
 function renderPwaTaskIcon(el, icon) {
   if (!el) return;
   if (icon === '▶️' || icon === '▶') {
-    el.innerHTML = TASK_PLAY_ICON_SVG;
+    el.innerHTML = TASK_ICON_SVGS.play;
+  } else if (icon === '⏳') {
+    el.innerHTML = TASK_ICON_SVGS.clock;
+  } else if (icon === '📍') {
+    el.innerHTML = TASK_ICON_SVGS.pin;
+  } else if (icon === '📋') {
+    el.innerHTML = TASK_ICON_SVGS.list;
+  } else if (icon === '🎉' || icon === '✅') {
+    el.innerHTML = TASK_ICON_SVGS.done;
+  } else if (icon === '⚠️') {
+    el.innerHTML = TASK_ICON_SVGS.warn;
+  } else if (icon === '🎯') {
+    el.innerHTML = TASK_ICON_SVGS.target;
   } else {
     el.textContent = icon;
   }
