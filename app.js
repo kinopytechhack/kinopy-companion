@@ -1611,26 +1611,27 @@ function escapeHtml(str) {
 // ==========================================
 
 function formatDateLabel(dateObj) {
+  const d = (dateObj instanceof Date) ? dateObj : (dateObj && dateObj.dateObj instanceof Date ? dateObj.dateObj : new Date());
   const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日 (${weekDays[dateObj.getDay()]})`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 (${weekDays[d.getDay()]})`;
 }
 
 function initChatTimeline() {
   elements.chatTimeline.innerHTML = "";
-  state.oldestLoadedDate = getLogicalDate();
+  state.oldestLoadedDate = getLogicalDate().dateObj;
 
   // 1. 最上部に過去ログ読み込みボタン
   loadPrevContainerEl = document.createElement("div");
   loadPrevContainerEl.className = "load-prev-container";
   btnLoadPrevChatEl = document.createElement("button");
   btnLoadPrevChatEl.className = "load-prev-btn";
-  btnLoadPrevChatEl.textContent = "これ以上過去のチャットはありません";
+  btnLoadPrevChatEl.textContent = "過去のチャットを読み込む";
   btnLoadPrevChatEl.addEventListener("click", loadPreviousLog);
   loadPrevContainerEl.appendChild(btnLoadPrevChatEl);
   elements.chatTimeline.appendChild(loadPrevContainerEl);
 
   // 2. 本日の日付セパレーター
-  elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
+  elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate().dateObj)));
 
   // 3. 本日のチャット読み込み
   const todayYmd = getTodayYmd();
@@ -1668,7 +1669,16 @@ function registerLogDate(ymd) {
 }
 
 function findPreviousLogDate(currentDate) {
-  const cur = new Date(currentDate.getTime());
+  let cur;
+  if (currentDate instanceof Date && !isNaN(currentDate.getTime())) {
+    cur = new Date(currentDate.getTime());
+  } else if (currentDate && currentDate.dateObj instanceof Date && !isNaN(currentDate.dateObj.getTime())) {
+    cur = new Date(currentDate.dateObj.getTime());
+  } else if (typeof currentDate === "string") {
+    cur = new Date(currentDate);
+  } else {
+    cur = getLogicalDate().dateObj;
+  }
   cur.setHours(0, 0, 0, 0);
   const prev = new Date(cur.getTime() - 24 * 60 * 60 * 1000);
   const ymd = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}-${String(prev.getDate()).padStart(2, "0")}`;
@@ -2958,7 +2968,7 @@ async function syncFromCloud() {
         if (loadPrevContainerEl) {
           elements.chatTimeline.appendChild(loadPrevContainerEl);
         }
-        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
+        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate().dateObj)));
 
         state.conversationHistory = [];
         let lastBotMsg = null;
