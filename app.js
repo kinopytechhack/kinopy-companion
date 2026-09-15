@@ -861,9 +861,38 @@ function setupEventListeners() {
   });
 
   // 音声試聴
-  elements.btnVoicePreview.addEventListener("click", () => {
+  elements.btnVoicePreview.addEventListener("click", async (e) => {
+    if (e) e.stopPropagation();
     unlockAudioContext();
-    speak("きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。");
+    const speakerId = elements.voiceSpeaker ? elements.voiceSpeaker.value : state.voiceSpeaker;
+    const rate = elements.voiceRate ? parseFloat(elements.voiceRate.value) : state.voiceRate;
+    const pitch = elements.voicePitch ? parseFloat(elements.voicePitch.value) : state.voicePitch;
+    const sampleText = voiceSamples[speakerId] || voiceSamples["11"] || "きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。";
+
+    const originalText = elements.btnVoicePreview.textContent;
+    elements.btnVoicePreview.textContent = "🔊 再生中...";
+    elements.btnVoicePreview.disabled = true;
+
+    if (state.sharedAudio) {
+      state.sharedAudio.pause();
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    try {
+      if (speakerId !== "os") {
+        await speakWithVoicevox(sampleText, speakerId, rate, pitch);
+      } else {
+        speakWithWebSpeech(sampleText, rate, pitch);
+      }
+    } catch (err) {
+      console.warn("Voice preview error:", err);
+      // フォールバックでWeb Speechを鳴らすと別人の声に感じられるため、プレビュー時はエラーログのみ
+    } finally {
+      elements.btnVoicePreview.textContent = originalText;
+      elements.btnVoicePreview.disabled = false;
+    }
   });
 
   // クイックアクションボタン
@@ -1103,6 +1132,23 @@ async function processRecordedAudio(audioBlob, mimeType) {
   }
 }
 
+// キャラクターごとの試聴セリフマップ
+const voiceSamples = {
+  "12": "きのぴぃ、お疲れさま！今日も一日マイペースでいこう！",
+  "51": "きのぴぃ、お疲れ様です。順調に進んでいますね。",
+  "64": "きのぴぃ、お疲れさまですぅ。一息ついていきましょうね。",
+  "39": "きのぴぃ、今日も絶好調ですね！一緒に頑張りましょう！",
+  "11": "きのぴぃ、お疲れさま。今日もいい調子で進んでるね。",
+  "21": "きのぴぃ、無理しすぎないでね。休むのも仕事だよ。",
+  "13": "きのぴぃ、気合入れていこうぜ！応援してるからな！",
+  "52": "きのぴぃ、お主の頑張りはしかと見届けておるぞ。",
+  "8": "きのぴぃ、お疲れさま〜！何か手伝えることある？",
+  "2": "きのぴぃ、お疲れさまですわ！今日も完璧ですわね。",
+  "3": "きのぴぃ、お疲れなのだ！ボクがいつでも応援してるのだ！",
+  "10": "きのぴぃ、お疲れさまです。無理せずゆっくり深呼吸してくださいね。",
+  "os": "お疲れさまです、きのぴぃ！何でも声をかけてくださいね。"
+};
+
 // ==========================================
 // 音声合成 (VOICEVOX ＆ iOS Web Speech 最適化)
 // ==========================================
@@ -1121,7 +1167,7 @@ async function speak(text) {
   // VOICEVOX が選択されている場合
   if (state.voiceSpeaker !== "os") {
     try {
-      await speakWithVoicevox(text, state.voiceSpeaker);
+      await speakWithVoicevox(text, state.voiceSpeaker, state.voiceRate, state.voicePitch);
       return;
     } catch (err) {
       console.warn("VOICEVOX failed, fallback to Web Speech:", err);
@@ -1129,10 +1175,10 @@ async function speak(text) {
   }
 
   // OS標準音声フォールバック
-  speakWithWebSpeech(text);
+  speakWithWebSpeech(text, state.voiceRate, state.voicePitch);
 }
 
-async function speakWithVoicevox(text, speakerId) {
+async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch = state.voicePitch) {
   const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
   const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
 
@@ -1143,9 +1189,30 @@ async function speakWithVoicevox(text, speakerId) {
 
   if (!audioUrl) throw new Error("No audio URL");
 
+  // 音声Blobを取得して完全バッファリング再生（途切れ防止＆安定化）
+  let audioSrc = audioUrl;
+  try {
+    const audioRes = await fetch(audioUrl);
+    if (audioRes.ok) {
+      const blob = await audioRes.blob();
+      audioSrc = URL.createObjectURL(blob);
+    }
+  } catch (e) {
+    console.warn("Blob conversion fallback:", e);
+  }
+
   return new Promise((resolve, reject) => {
-    state.sharedAudio.src = audioUrl;
-    state.sharedAudio.playbackRate = state.voiceRate;
+    state.sharedAudio.src = audioSrc;
+    state.sharedAudio.playbackRate = rate;
+
+    const cleanup = () => {
+      state.isSpeaking = false;
+      elements.speakingIndicator.classList.add("hidden");
+      stopLipSync();
+      if (audioSrc.startsWith("blob:")) {
+        try { URL.revokeObjectURL(audioSrc); } catch (e) {}
+      }
+    };
 
     state.sharedAudio.onplay = () => {
       state.isSpeaking = true;
@@ -1154,20 +1221,19 @@ async function speakWithVoicevox(text, speakerId) {
     };
 
     state.sharedAudio.onended = () => {
-      state.isSpeaking = false;
-      elements.speakingIndicator.classList.add("hidden");
-      stopLipSync();
+      cleanup();
       resolve();
     };
 
     state.sharedAudio.onerror = (e) => {
-      state.isSpeaking = false;
-      elements.speakingIndicator.classList.add("hidden");
-      stopLipSync();
+      cleanup();
       reject(e);
     };
 
-    state.sharedAudio.play().catch(reject);
+    state.sharedAudio.play().catch((err) => {
+      cleanup();
+      reject(err);
+    });
   });
 }
 
@@ -1317,14 +1383,14 @@ function updatePwaCharacterTaskBar(icon, text, title = "") {
   if (elements.mascotTaskBar && title) elements.mascotTaskBar.title = title;
 }
 
-function speakWithWebSpeech(text) {
+function speakWithWebSpeech(text, rate = state.voiceRate, pitch = state.voicePitch) {
   if (!("speechSynthesis" in window)) return;
 
   const cleanText = text.replace(/[*_#`]/g, "");
   const uttr = new SpeechSynthesisUtterance(cleanText);
   uttr.lang = "ja-JP";
-  uttr.pitch = state.voicePitch;
-  uttr.rate = state.voiceRate;
+  uttr.pitch = pitch;
+  uttr.rate = rate;
 
   const voices = window.speechSynthesis.getVoices();
   const jpVoice = voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
