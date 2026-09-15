@@ -415,44 +415,38 @@ function setupEventListeners() {
     elements.mascotScreen.classList.add("simple-mode");
   }
 
-  if (elements.btnMascotChat) {
-    elements.btnMascotChat.addEventListener("click", (e) => {
+  // メッセージ吹き出しタップでチャット画面を開く
+  if (elements.mascotFloatingBubble) {
+    elements.mascotFloatingBubble.addEventListener("click", (e) => {
       e.stopPropagation();
       openChatPanel();
     });
   }
 
-  if (elements.btnMascotToggleMode) {
-    elements.btnMascotToggleMode.addEventListener("click", (e) => {
+  // キャラクター（アバター本体）タップでシンプルモード切替（アバターのみ / メッセージ復活）
+  if (elements.mascotTouchArea) {
+    elements.mascotTouchArea.addEventListener("click", (e) => {
+      // 予定バーや吹き出し、ボタンのクリック時は除外
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("#mascot-floating-bubble") || e.target.closest("button")) return;
       e.stopPropagation();
       toggleSimpleMode();
     });
   }
 
-  // ダブルタップ・ダブルクリックでシンプルモード切替
-  let lastTouchTime = 0;
-  if (elements.mascotTouchArea) {
-    elements.mascotTouchArea.addEventListener("dblclick", (e) => {
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
-      toggleSimpleMode();
-    });
+  // Kumapy を別ウィンドウで開く
+  const openKumapyInBrowser = () => {
+    let sheetId = state.kumapyUrl.trim();
+    const match = sheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (match) sheetId = match[1];
+    const targetUrl = sheetId.startsWith("http") ? sheetId : `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+    window.open(targetUrl, "_blank");
+  };
 
-    elements.mascotTouchArea.addEventListener("touchend", (e) => {
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
-      const currentTime = Date.now();
-      const tapLength = currentTime - lastTouchTime;
-      if (tapLength < 350 && tapLength > 0) {
-        toggleSimpleMode();
-        e.preventDefault();
-      }
-      lastTouchTime = currentTime;
-    });
-  }
+  // タスク枠タップで Kumapy を別ウィンドウで開く
   if (elements.mascotTaskBar) {
     elements.mascotTaskBar.addEventListener("click", (e) => {
       e.stopPropagation();
-      fetchKumapyTasks();
-      syncFromCloud();
+      openKumapyInBrowser();
     });
 
     elements.mascotTaskBar.addEventListener("mouseenter", () => {

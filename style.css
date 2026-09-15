@@ -156,13 +156,13 @@ body {
   pointer-events: none;
 }
 
-/* 下部横長1行予定枠 (PWA用・案B: ナチュラル・手帳付箋タグ風) */
+/* 下部横長1行予定枠 (PWA用・すっきりナチュラルスタイル) */
 .mascot-task-bar {
   width: 90%;
   max-width: 320px;
   min-height: 38px;
   background: #F7F2EA;
-  border: 1.5px dashed #B8A99A;
+  border: none;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -173,7 +173,7 @@ body {
   color: #4A3F35;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease;
   z-index: 10;
   overflow: hidden;
   position: relative;
