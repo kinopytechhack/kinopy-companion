@@ -225,6 +225,7 @@ function initPullToRefresh() {
   const PULL_THRESHOLD = 50;
 
   const onTouchStart = (e) => {
+    if (!state.isPanelOpen) return; // マスコット単体画面ではPullToRefreshを無効化
     if (isRefreshing) return;
     if (elements.settingsPanel && !elements.settingsPanel.classList.contains("hidden")) return;
     if (elements.memoPanel && !elements.memoPanel.classList.contains("hidden")) return;
@@ -477,6 +478,16 @@ function setupEventListeners() {
     elements.mascotScreen.classList.add("simple-mode");
   }
 
+  // マスコット画面タップでチャット画面を開く
+  if (elements.mascotScreen) {
+    elements.mascotScreen.addEventListener("click", (e) => {
+      // 予定バー、設定・音声ボタン、ミニバッジのクリック時は除外
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
+      e.stopPropagation();
+      openChatPanel();
+    });
+  }
+
   // メッセージ吹き出しタップでチャット画面を開く
   if (elements.mascotFloatingBubble) {
     elements.mascotFloatingBubble.addEventListener("click", (e) => {
@@ -489,13 +500,13 @@ function setupEventListeners() {
   if (elements.mascotTouchArea) {
     elements.mascotTouchArea.addEventListener("click", (e) => {
       // 予定バー、設定・音声ボタンのクリック時は除外
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
       e.stopPropagation();
       openChatPanel();
     });
 
     elements.mascotTouchArea.addEventListener("dblclick", (e) => {
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button")) return;
+      if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
       e.stopPropagation();
       toggleSimpleMode();
     });
