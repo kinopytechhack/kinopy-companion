@@ -42,6 +42,8 @@ const state = {
   latestMorningPaper: null,
   weatherFetchDate: null,
   dailyContextFetchDate: null,
+  dailyContextUpdatedAt: null,
+  autoRefreshed930Date: null,
   isCoachingMode: false,
   coachingTurnCount: 0,
   
@@ -383,6 +385,23 @@ function loadSettingsToUI() {
   if (elements.pitchVal) elements.pitchVal.textContent = state.voicePitch.toFixed(1);
   if (elements.rateVal) elements.rateVal.textContent = state.voiceRate.toFixed(1);
   updateTokenDisplay();
+  updateDailyContextStatusUI();
+}
+
+function updateDailyContextStatusUI() {
+  if (!elements.dailyContextStatusText) return;
+  if (state.dailyContextUpdatedAt) {
+    try {
+      const d = new Date(state.dailyContextUpdatedAt);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      elements.dailyContextStatusText.textContent = `最終更新: ${month}/${day} ${hh}:${mm}`;
+      return;
+    } catch (e) {}
+  }
+  elements.dailyContextStatusText.textContent = '最終更新: 未取得';
 }
 
 function updateBadgeState() {
@@ -2362,6 +2381,8 @@ async function fetchDailyContext(force = false) {
         if (ctx.sleep) state.todaySleep = ctx.sleep;
         if (ctx.morningPaper) state.latestMorningPaper = ctx.morningPaper;
         state.dailyContextFetchDate = ymd;
+        state.dailyContextUpdatedAt = ctx.updatedAt || new Date().toISOString();
+        updateDailyContextStatusUI();
         console.log('PWA DailyContext fetched via GAS cloud cache for', ymd);
         return;
       }
@@ -2376,9 +2397,45 @@ async function fetchDailyContext(force = false) {
     fetchSleepData(force)
   ]);
 
+  const nowIso = new Date().toISOString();
   state.dailyContextFetchDate = ymd;
+  state.dailyContextUpdatedAt = nowIso;
+  updateDailyContextStatusUI();
   console.log('PWA DailyContext fully cached for', ymd);
 }
+
+// ⏰ 毎朝9:30 自動日次コンテキスト更新チェック（1分間隔）
+function check930AutoRefresh() {
+  const now = new Date();
+  const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+
+  if ((hours > 9 || (hours === 9 && minutes >= 30)) && state.autoRefreshed930Date !== ymd) {
+    let needRefresh = true;
+    if (state.dailyContextUpdatedAt) {
+      try {
+        const updateDate = new Date(state.dailyContextUpdatedAt);
+        const updateYmd = `${updateDate.getFullYear()}-${String(updateDate.getMonth() + 1).padStart(2, '0')}-${String(updateDate.getDate()).padStart(2, '0')}`;
+        if (updateYmd === ymd && (updateDate.getHours() > 9 || (updateDate.getHours() === 9 && updateDate.getMinutes() >= 30))) {
+          needRefresh = false;
+        }
+      } catch (e) {}
+    }
+
+    if (needRefresh) {
+      console.log('⏰ 9:30 Auto refreshing daily context in PWA for', ymd);
+      fetchDailyContext(true).then(() => {
+        state.autoRefreshed930Date = ymd;
+        console.log('✅ PWA 9:30 Auto refresh completed successfully');
+      }).catch(e => console.warn('PWA 9:30 Auto refresh failed:', e));
+    } else {
+      state.autoRefreshed930Date = ymd;
+    }
+  }
+}
+
+setInterval(check930AutoRefresh, 60 * 1000);
 
 // ==========================================
 // 設定保存

@@ -273,8 +273,9 @@ body {
 /* 独り言・予定通知用ミニ吹き出し (PWA用・常時表示) */
 .floating-bubble {
   position: relative;
-  max-width: 260px;
-  min-width: 140px;
+  width: 290px;
+  max-width: 90%;
+  box-sizing: border-box;
   background: #ffffff;
   color: #383028;
   border: 1.2px solid #8C7B6C;
