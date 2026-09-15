@@ -1416,7 +1416,8 @@ async function handleQuickAction(action) {
   await new Promise(r => setTimeout(r, 350));
 
   let reply = "";
-  if (state.geminiEnabled && state.geminiApiKey) {
+  // 💡 モヤモヤのみ Gemini で深く思考をほぐす。🍪 おなか減った / 🛌 もう無理 は即時定型文
+  if (action === "coach" && state.geminiEnabled && state.geminiApiKey) {
     try {
       elements.aiStatusIndicator.textContent = "✨ Gemini 思考中...";
       elements.aiStatusIndicator.classList.remove("hidden");
@@ -2040,3 +2041,44 @@ function syncSaveSettingsToGas(settingsObj) {
     console.log("☁️ Settings saved to cloud via JSONP");
   }).catch(err => console.warn("syncSaveSettingsToGas JSONP warning:", err));
 }
+
+// 独り言（Monologue）セリフ集（質問ゼロ・返答不要・癒やし・脱力・見守り）
+const monologues = [
+  "カタカタ集中してる姿、かっこいいなぁ…",
+  "たまには首をコキッて回して深呼吸しよ…",
+  "画面見つめすぎて目がシパシパしてないかな…",
+  "サウナの水風呂くらい、頭を冷やす時間も大事だよねぇ…",
+  "ひと息ついたら、温かいお茶でも飲も…",
+  "今日もきのぴぃのペースで進んでるの、見てて安心するなぁ。",
+  "ちょっとだけ肩の力を抜いて、ふーって息吐いてみよ。",
+  "ぼーっとするのも立派な脳のクールダウン…",
+  "背中まるまってないかな？ ぐーんと伸びをひとつしよ。",
+  "ひと区切りついたら、冷たい水でも飲んでリフレッシュしよ〜。"
+];
+
+let lastPwaActivityTime = Date.now();
+function getRandomPwaMonologueDelay() {
+  return (30 + Math.random() * 30) * 60 * 1000;
+}
+let nextPwaMonologueDelay = getRandomPwaMonologueDelay();
+
+function checkPwaMonologueTimer() {
+  const now = Date.now();
+  const hour = new Date().getHours();
+  if (hour >= 0 && hour < 5) return;
+  if (state.activeTimer) return;
+
+  if (now - lastPwaActivityTime >= nextPwaMonologueDelay) {
+    lastPwaActivityTime = now;
+    nextPwaMonologueDelay = getRandomPwaMonologueDelay();
+
+    const text = monologues[Math.floor(Math.random() * monologues.length)];
+    addMessageBubble("bot", text, null, true);
+    if (state.voiceEnabled) {
+      speak(text);
+    }
+  }
+}
+
+// 1分ごとに独り言タイマーチェック
+setInterval(checkPwaMonologueTimer, 60 * 1000);
