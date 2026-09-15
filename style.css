@@ -113,10 +113,12 @@ body {
   gap: 20px;
 }
 
-/* シンプルモード（メッセージ・予定バーを非表示・アバターサイズは大きいまま維持） */
+/* シンプルモード（メッセージ・予定バーを非表示・アバターは全く動かず静止） */
 .mascot-screen.simple-mode #mascot-floating-bubble,
 .mascot-screen.simple-mode #mascot-task-bar {
-  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .mascot-avatar-container {
@@ -124,6 +126,40 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* メッセージ合図バッジ (温かみのあるゴールド・キラキラ通知) */
+.mini-badge {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.45);
+  pointer-events: none;
+  animation: badge-pulse 2s infinite ease-in-out;
+  z-index: 100;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.75);
+  }
 }
 
 .mascot-avatar-ring {
