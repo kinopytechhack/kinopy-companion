@@ -9,16 +9,16 @@
   <title>カピパラさん - Kinopy Companion</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260915-1616">
+  <link rel="manifest" href="manifest.json?v=20260915-1635">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="カピパラさん">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1616">
-  <link rel="icon" href="assets/icon.png?v=20260915-1616">
-  <link rel="shortcut icon" href="favicon.ico?v=20260915-1616">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260915-1635">
+  <link rel="icon" href="assets/icon.png?v=20260915-1635">
+  <link rel="shortcut icon" href="favicon.ico?v=20260915-1635">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260915-1616">
+  <link rel="stylesheet" href="style.css?v=20260915-1635">
 </head>
 <body>
   <div class="app-container">
@@ -43,6 +43,12 @@
           </div>
           <div class="mascot-status-dot"></div>
           <div class="mini-badge hidden" id="mascot-mini-badge">💬</div>
+        </div>
+
+        <!-- 下部横長1行の予定・タスクステータス枠 -->
+        <div class="mascot-task-bar" id="mascot-task-bar" title="クリックでKumapyを開く">
+          <span class="char-task-icon" id="pwa-char-task-icon">🎯</span>
+          <span class="char-task-text" id="pwa-char-task-text">Kumapyを読み込み中...</span>
         </div>
 
         <div class="mascot-tap-hint">
@@ -240,6 +246,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260915-1616"></script>
+  <script src="app.js?v=20260915-1635"></script>
 </body>
 </html>

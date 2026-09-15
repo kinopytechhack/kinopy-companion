@@ -115,6 +115,9 @@ const elements = {
   mascotMiniBadge: document.getElementById("mascot-mini-badge"),
   mascotFloatingBubble: document.getElementById("mascot-floating-bubble"),
   mascotFloatingBubbleText: document.getElementById("mascot-floating-bubble-text"),
+  mascotTaskBar: document.getElementById("mascot-task-bar"),
+  pwaCharTaskIcon: document.getElementById("pwa-char-task-icon"),
+  pwaCharTaskText: document.getElementById("pwa-char-task-text"),
 
   // チャット検索
   chatSearchBar: document.getElementById("chat-search-bar"),
@@ -393,6 +396,13 @@ function setupEventListeners() {
 
   if (elements.mascotTouchArea) {
     elements.mascotTouchArea.addEventListener("click", openChatPanel);
+  }
+  if (elements.mascotTaskBar) {
+    elements.mascotTaskBar.addEventListener("click", (e) => {
+      e.stopPropagation();
+      fetchKumapyTasks();
+      syncFromCloud();
+    });
   }
   if (elements.btnChatClose) {
     elements.btnChatClose.addEventListener("click", (e) => {
@@ -904,40 +914,46 @@ function stopLipSync() {
   }
 }
 
-// PWAミニフローティング吹き出し制御
-let pwaFloatingBubbleTimeout = null;
-let pwaFloatingBubbleHideTimeout = null;
-
-function showPwaFloatingBubble(text, durationMs = 5500) {
+// PWAミニフローティング吹き出し制御（常時表示仕様）
+function showPwaFloatingBubble(text) {
   const bubbleEl = elements.mascotFloatingBubble;
   const bubbleTextEl = elements.mascotFloatingBubbleText;
   if (!bubbleEl || !bubbleTextEl) return;
 
-  if (pwaFloatingBubbleTimeout) clearTimeout(pwaFloatingBubbleTimeout);
-  if (pwaFloatingBubbleHideTimeout) clearTimeout(pwaFloatingBubbleHideTimeout);
-
   bubbleTextEl.textContent = text;
   bubbleEl.classList.remove("hidden", "fade-out");
 
-  pwaFloatingBubbleTimeout = setTimeout(() => {
-    hidePwaFloatingBubble(false);
-  }, durationMs);
+  // 吹き出しアニメーション再トリガー
+  bubbleEl.style.animation = 'none';
+  bubbleEl.offsetHeight; // reflow
+  bubbleEl.style.animation = 'floatBubbleIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+
+  // 吹き出しタップでチャットを開く
+  bubbleEl.onclick = (e) => {
+    e.stopPropagation();
+    openChatPanel();
+  };
 }
 
 function hidePwaFloatingBubble(immediate = false) {
   const bubbleEl = elements.mascotFloatingBubble;
   if (!bubbleEl) return;
-  if (pwaFloatingBubbleTimeout) clearTimeout(pwaFloatingBubbleTimeout);
-  if (pwaFloatingBubbleHideTimeout) clearTimeout(pwaFloatingBubbleHideTimeout);
 
   if (immediate) {
     bubbleEl.classList.add("hidden");
   } else {
     bubbleEl.classList.add("fade-out");
-    pwaFloatingBubbleHideTimeout = setTimeout(() => {
+    setTimeout(() => {
       bubbleEl.classList.add("hidden");
     }, 300);
   }
+}
+
+// アバター下の横長1行予定枠の更新 (PWA用)
+function updatePwaCharacterTaskBar(icon, text, title = "") {
+  if (elements.pwaCharTaskIcon) elements.pwaCharTaskIcon.textContent = icon;
+  if (elements.pwaCharTaskText) elements.pwaCharTaskText.textContent = text;
+  if (elements.mascotTaskBar && title) elements.mascotTaskBar.title = title;
 }
 
 function speakWithWebSpeech(text) {
@@ -1106,14 +1122,22 @@ function initChatTimeline() {
   registerLogDate(todayYmd);
 
   const todayLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+  let lastBotMsg = null;
   if (todayLogs.length > 0) {
     todayLogs.forEach((msg) => {
       elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
       state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+      if (msg.role === "bot") lastBotMsg = msg.text;
     });
   } else {
     // クラウドから取得するまでのプレースホルダー（localStorageには保存しない）
-    elements.chatTimeline.appendChild(createMessageBubbleElement("bot", "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！", new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })));
+    const welcome = "きのぴぃ、おつかれさま！サウナハット被っていつでもスタンバイしてるよ。今日何する？何でも話してね！";
+    elements.chatTimeline.appendChild(createMessageBubbleElement("bot", welcome, new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })));
+    lastBotMsg = welcome;
+  }
+
+  if (lastBotMsg) {
+    showPwaFloatingBubble(lastBotMsg);
   }
 
   updateLoadPrevButton();
@@ -1283,6 +1307,10 @@ function addMessageBubble(role, text, timeStr, shouldSave = true) {
   const rowEl = createMessageBubbleElement(role, text, timeStr);
   elements.chatTimeline.appendChild(rowEl);
   scrollToBottom();
+
+  if (role === "bot") {
+    showPwaFloatingBubble(text);
+  }
 
   state.conversationHistory.push({
     role: role === "user" ? "user" : "model",
@@ -1836,27 +1864,39 @@ async function fetchKumapyTasks() {
     const remaining = activeTasks;
 
     if (running) {
+      const text = `${running.title} (${running.actStartHm || "実行中"}〜)`;
+      const title = `【進行中タスク】${running.title}\n開始: ${running.actStartHm || ""}`;
       elements.kumapyIcon.textContent = "▶️";
-      elements.kumapyText.textContent = `${running.title} (${running.actStartHm || "実行中"}〜)`;
-      elements.kumapyStatusBar.title = `【進行中タスク】${running.title}\n開始: ${running.actStartHm || ""}`;
+      elements.kumapyText.textContent = text;
+      elements.kumapyStatusBar.title = title;
+      updatePwaCharacterTaskBar("▶️", text, title);
     } else if (nextTargetTask) {
       const timeLabel = nextTargetTask.planEndHm ? `${nextTargetTask.planStartHm}-${nextTargetTask.planEndHm}` : `${nextTargetTask.planStartHm}〜`;
       const isWindow = nextTargetType === "in_window";
       const icon = isWindow ? "📍" : "⏳";
       const countSuffix = remaining.length > 1 ? ` (残${remaining.length}件)` : "";
+      const text = `${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
+      const title = `【${isWindow ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
       elements.kumapyIcon.textContent = icon;
-      elements.kumapyText.textContent = `${nextTargetTask.planStartHm} ${nextTargetTask.title}${countSuffix}`;
-      elements.kumapyStatusBar.title = `【${isWindow ? "予定時間内" : "次の予定"}】${timeLabel} ${nextTargetTask.title}\n本日残りタスク: ${remaining.length}件`;
+      elements.kumapyText.textContent = text;
+      elements.kumapyStatusBar.title = title;
+      updatePwaCharacterTaskBar(icon, text, title);
     } else {
       if (remaining.length > 0) {
         const countSuffix = remaining.length > 1 ? ` 他${remaining.length - 1}件` : "";
+        const text = `${remaining[0].title}${countSuffix}`;
+        const title = `本日残りタスク: ${remaining.length}件`;
         elements.kumapyIcon.textContent = "📋";
-        elements.kumapyText.textContent = `${remaining[0].title}${countSuffix}`;
-        elements.kumapyStatusBar.title = `本日残りタスク: ${remaining.length}件`;
+        elements.kumapyText.textContent = text;
+        elements.kumapyStatusBar.title = title;
+        updatePwaCharacterTaskBar("📋", text, title);
       } else {
+        const text = "本日のタスク完了！";
+        const title = "すべての予定・タスクが完了しています";
         elements.kumapyIcon.textContent = "🎉";
-        elements.kumapyText.textContent = "本日のタスク完了！";
-        elements.kumapyStatusBar.title = "すべての予定・タスクが完了しています";
+        elements.kumapyText.textContent = text;
+        elements.kumapyStatusBar.title = title;
+        updatePwaCharacterTaskBar("🎉", text, title);
       }
     }
   } catch (err) {
@@ -1864,6 +1904,7 @@ async function fetchKumapyTasks() {
     elements.kumapyIcon.textContent = "⚠️";
     elements.kumapyText.textContent = "Kumapy未接続 (タップで確認)";
     elements.kumapyStatusBar.title = `通信エラー: ${err.message}`;
+    updatePwaCharacterTaskBar("⚠️", "Kumapy未接続 (タップで確認)", `通信エラー: ${err.message}`);
   } finally {
     if (elements.btnKumapyRefresh) {
       setTimeout(() => elements.btnKumapyRefresh.classList.remove("spinning"), 400);
@@ -2169,10 +2210,7 @@ function checkPwaMonologueTimer() {
 
     const text = monologues[Math.floor(Math.random() * monologues.length)];
     addMessageBubble("bot", text, null, true);
-
-    if (!state.isPanelOpen) {
-      showPwaFloatingBubble(text, 5500);
-    }
+    showPwaFloatingBubble(text);
 
     if (state.voiceEnabled) {
       speak(text);
