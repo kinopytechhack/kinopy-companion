@@ -2323,6 +2323,25 @@ async function fetchDailyContext(force = false) {
     return;
   }
 
+  // 1. GAS Cloud Sync から 00_Contexts JSON を優先取得
+  if (state.syncGasUrl) {
+    try {
+      const res = await fetchGasJsonp('getDailyContext', { date: ymd });
+      if (res && res.success && res.context) {
+        const ctx = res.context;
+        if (ctx.weather) state.todayWeather = ctx.weather;
+        if (ctx.sleep) state.todaySleep = ctx.sleep;
+        if (ctx.morningPaper) state.latestMorningPaper = ctx.morningPaper;
+        state.dailyContextFetchDate = ymd;
+        console.log('PWA DailyContext fetched via GAS cloud cache for', ymd);
+        return;
+      }
+    } catch (e) {
+      console.warn('PWA fetchDailyContext via GAS failed, falling back to direct sheet fetch:', e);
+    }
+  }
+
+  // 2. フォールバック: 直接スプレッドシート等から取得
   await Promise.allSettled([
     fetchWeatherData(force),
     fetchSleepData(force)
