@@ -160,12 +160,20 @@ let btnLoadPrevChatEl = null;
 let loadPrevContainerEl = null;
 
 // 1日の論理日付（朝6時基準: 00:00〜05:59は前日扱い）
-function getTodayYmd(date = new Date()) {
+function getLogicalDate(date = new Date()) {
   const d = new Date(date.getTime());
   if (d.getHours() < 6) {
     d.setDate(d.getDate() - 1);
   }
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const ymd = `${yyyy}-${mm}-${dd}`;
+  return { dateObj: d, yyyy, mm, dd, ymd };
+}
+
+function getTodayYmd(date = new Date()) {
+  return getLogicalDate(date).ymd;
 }
 
 // ==========================================
@@ -873,9 +881,10 @@ function setupEventListeners() {
     fetchKumapyTasks();
     syncFromCloud();
   });
-  elements.kumapyStatusBar.addEventListener("click", () => {
-    fetchKumapyTasks();
-    syncFromCloud();
+  elements.kumapyStatusBar.addEventListener("click", (e) => {
+    if (e.target.closest("#btn-kumapy-refresh")) return;
+    e.stopPropagation();
+    openKumapyInBrowser();
   });
 
   // スライダー値表示更新
