@@ -2919,7 +2919,7 @@ async function syncFromCloud() {
     console.warn("Cloud settings JSONP sync warning:", err);
   }
 
-  // 2. 本日の会話ログの同期取得＆マージ（正本反映・メッセージ消失防止）
+  // 2. 本日の会話ログの同期取得＆マージ（正本反映）
   try {
     let data = await fetchGasJsonp("getLogs", { date: todayYmd });
     const calendarYmd = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
@@ -2930,45 +2930,27 @@ async function syncFromCloud() {
       }
     }
 
-    if (data && data.success && Array.isArray(data.messages)) {
+    if (data && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
       const cloudMessages = data.messages;
-      if (cloudMessages.length > 0) {
-        const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
-        const getMsgKey = (m) => `${m.time || ""}|${m.role || ""}|${(m.text || "").trim()}`;
-        const localKeys = new Set(localLogs.map(getMsgKey));
-        
-        let hasNew = false;
-        const isInitialPlaceholderOnly = (localLogs.length === 0);
+      localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
 
-        cloudMessages.forEach(cm => {
-          const key = getMsgKey(cm);
-          if (!localKeys.has(key)) {
-            localLogs.push({ role: cm.role, text: cm.text, time: cm.time });
-            localKeys.add(key);
-            hasNew = true;
-          }
+      if (elements.chatTimeline) {
+        elements.chatTimeline.innerHTML = "";
+        if (loadPrevContainerEl) {
+          elements.chatTimeline.appendChild(loadPrevContainerEl);
+        }
+        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
+
+        state.conversationHistory = [];
+        let lastBotMsg = null;
+        cloudMessages.forEach(msg => {
+          elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+          state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+          if (msg.role === "bot") lastBotMsg = msg.text;
         });
 
-        if (hasNew || isInitialPlaceholderOnly) {
-          localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(localLogs));
-          
-          // タイムラインを再描画してプレースホルダーを正本で上書き
-          if (elements.chatTimeline) {
-            elements.chatTimeline.innerHTML = "";
-            if (loadPrevContainerEl) elements.chatTimeline.appendChild(loadPrevContainerEl);
-            elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate())));
-            state.conversationHistory = [];
-            let lastBotMsg = null;
-            localLogs.forEach((msg) => {
-              elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-              state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
-              if (msg.role === "bot") lastBotMsg = msg.text;
-            });
-            if (lastBotMsg) {
-              showPwaFloatingBubble(lastBotMsg);
-            }
-            scrollToBottom();
-          }
+        if (lastBotMsg) {
+          showPwaFloatingBubble(lastBotMsg);
         }
 
         if (state.conversationHistory.length > 20) {
@@ -2976,10 +2958,11 @@ async function syncFromCloud() {
         }
 
         updateLoadPrevButton();
+        scrollToBottom();
       }
     }
   } catch (err) {
-    console.warn("Cloud logs JSONP sync warning:", err);
+    console.warn("Cloud logs sync warning:", err);
   }
 
   // 3. メモの同期取得＆マージ
