@@ -435,13 +435,21 @@ function updateDailyContextStatusUI() {
   elements.dailyContextStatusText.textContent = '最終更新: 未取得';
 }
 
-function updateBadgeState() {
-  if (state.geminiEnabled && state.geminiApiKey) {
-    elements.aiModeBadge.textContent = "✨ Gemini連動";
-    elements.aiModeBadge.classList.add("active");
-  } else {
-    elements.aiModeBadge.textContent = "⚡ 内蔵モード";
-    elements.aiModeBadge.classList.remove("active");
+function updateBadgeState(status) {
+  if (elements.aiModeBadge) {
+    if (!state.geminiApiKey) {
+      elements.aiModeBadge.textContent = "⚡ 内蔵モード";
+      elements.aiModeBadge.className = "ai-mode-badge";
+    } else if (!state.geminiEnabled) {
+      elements.aiModeBadge.textContent = "⚡ 内蔵 (API一時停止)";
+      elements.aiModeBadge.className = "ai-mode-badge";
+    } else if (status === "error") {
+      elements.aiModeBadge.textContent = "⚡ 内蔵 (APIエラー)";
+      elements.aiModeBadge.className = "ai-mode-badge";
+    } else {
+      elements.aiModeBadge.textContent = "✨ Gemini 連動中";
+      elements.aiModeBadge.className = "ai-mode-badge active";
+    }
   }
   const soundIcon = state.voiceEnabled ? "🔊" : "🔇";
   if (elements.btnSoundToggle) {
@@ -816,11 +824,17 @@ function setupEventListeners() {
     handleUserSend();
   });
 
-  // テキスト入力のEnterキー送信（IME変換中を正しく除外＆確実にクリア）
+  // textarea 自動伸縮 ＆ Cmd+Enter / Ctrl+Enter で送信（単体Enterは改行）
+  elements.userInput.addEventListener("input", () => {
+    elements.userInput.style.height = "auto";
+    elements.userInput.style.height = Math.min(elements.userInput.scrollHeight, 120) + "px";
+  });
+
   elements.userInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       if (e.isComposing) return; // IME確定中は送信しない
       e.preventDefault();
+      e.stopPropagation();
       unlockAudioContext();
       handleUserSend();
     }
@@ -1896,7 +1910,7 @@ async function handleUserSend() {
   // メモ保存待機モードのハンドリング
   if (state.waitingForMemo) {
     state.waitingForMemo = false;
-    elements.userInput.placeholder = state.isCoachingMode ? "💡 モヤモヤしていることを話してみて..." : "メッセージを入力...";
+    elements.userInput.placeholder = state.isCoachingMode ? "💡 モヤモヤしていることを話してみて (⌘+Enterで送信)..." : "メッセージを入力 (⌘+Enterで送信)...";
     addMessageBubble("user", text, null, true);
     await new Promise(r => setTimeout(r, 200));
     addMemo(text);
@@ -1909,7 +1923,7 @@ async function handleUserSend() {
     state.coachingTurnCount++;
     if (/^(ありがとう|スッキリした|解決した|また後で|整理できた|大丈夫|ok|おわり|終わり|サンキュー)/i.test(text)) {
       state.isCoachingMode = false;
-      elements.userInput.placeholder = "メッセージを入力...";
+      elements.userInput.placeholder = "メッセージを入力 (⌘+Enterで送信)...";
     }
   }
 
@@ -1991,11 +2005,14 @@ async function callGeminiApi(userPrompt) {
 
     if (!data) {
       console.error("Gemini Error across all models:", lastErr);
+      updateBadgeState("error");
       const errReply = `ごめんね、Geminiの通信でエラーが出ちゃった（${lastErr?.message || "エラー"}）。内蔵モードで答えるね。`;
       addMessageBubble("bot", errReply, null, true);
       speak(errReply);
       return;
     }
+
+    updateBadgeState(); // 成功時はアクティブ状態に戻す
 
     const candidate = data.candidates && data.candidates[0];
     const parts = candidate?.content?.parts || [];
@@ -2011,6 +2028,7 @@ async function callGeminiApi(userPrompt) {
 
   } catch (err) {
     elements.aiStatusIndicator.classList.add("hidden");
+    updateBadgeState("error");
     console.error("Fetch Gemini error:", err);
     const fallbackReply = "通信環境が不安定みたい。でもぼくはいつでもきのぴぃの味方だよ！";
     addMessageBubble("bot", fallbackReply, null, true);
@@ -2127,7 +2145,7 @@ const quickPrompts = {
 async function handleQuickAction(action) {
   if (action === "memo") {
     state.waitingForMemo = true;
-    elements.userInput.placeholder = "📝 保存したいメモを入力して送信...";
+    elements.userInput.placeholder = "📝 保存したいメモを入力 (⌘+Enterで送信)...";
     elements.userInput.value = "";
     elements.userInput.focus();
     const promptMsg = "保存したい内容を教えてください";
@@ -2143,7 +2161,7 @@ async function handleQuickAction(action) {
     state.isCoachingMode = true;
     state.coachingTurnCount = 0;
     setAvatarCut("worried", 5000);
-    elements.userInput.placeholder = "💡 モヤモヤしていることを話してみて...";
+    elements.userInput.placeholder = "💡 モヤモヤしていることを話してみて (⌘+Enterで送信)...";
     elements.userInput.focus();
   } else if (action === "snack") {
     setAvatarCut("snack", 6000);
@@ -2961,33 +2979,82 @@ async function syncFromCloud() {
 
     if (data && data.success && Array.isArray(data.messages) && data.messages.length > 0) {
       const cloudMessages = data.messages;
-      localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(cloudMessages));
+      const localLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+
+      // 既存のローカルログとクラウドログを安全にマージ
+      const mergedLogs = [];
+      const seenKeys = new Set();
+
+      // まずクラウドのメッセージを追加
+      cloudMessages.forEach(msg => {
+        const role = msg.role === "user" ? "user" : "bot";
+        const timeStr = msg.time || "";
+        const text = msg.text || "";
+        const key = `${timeStr}|${role}|${text.trim()}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          mergedLogs.push({ role, text, time: timeStr });
+        }
+      });
+
+      // クラウドにまだ届いていない直近のローカルメッセージを追加
+      localLogs.forEach(msg => {
+        const role = msg.role === "user" ? "user" : "bot";
+        const timeStr = msg.time || "";
+        const text = msg.text || "";
+        const key = `${timeStr}|${role}|${text.trim()}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          mergedLogs.push({ role, text, time: timeStr });
+        }
+      });
+
+      localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(mergedLogs));
 
       if (elements.chatTimeline) {
-        elements.chatTimeline.innerHTML = "";
-        if (loadPrevContainerEl) {
-          elements.chatTimeline.appendChild(loadPrevContainerEl);
-        }
-        elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate().dateObj)));
+        // DOM上にすでに表示されているメッセージのキーを収集
+        const existingBubbles = elements.chatTimeline.querySelectorAll(".chat-bubble-row");
+        const renderedKeys = new Set();
+        existingBubbles.forEach(row => {
+          const textEl = row.querySelector(".chat-bubble-text");
+          const timeEl = row.querySelector(".chat-bubble-time");
+          const isUser = row.classList.contains("user-message");
+          if (textEl) {
+            const t = (textEl.textContent || "").trim();
+            const tm = timeEl ? (timeEl.textContent || "").trim() : "";
+            renderedKeys.add(`${tm}|${isUser ? "user" : "bot"}|${t}`);
+          }
+        });
 
-        state.conversationHistory = [];
+        // 未描画のメッセージがあればDOMに追加
+        let newAdded = false;
         let lastBotMsg = null;
-        cloudMessages.forEach(msg => {
-          elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
-          state.conversationHistory.push({ role: msg.role === "user" ? "user" : "model", text: msg.text });
+        mergedLogs.forEach(msg => {
+          const key = `${msg.time || ""}|${msg.role}|${(msg.text || "").trim()}`;
+          if (!renderedKeys.has(key)) {
+            renderedKeys.add(key);
+            elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
+            newAdded = true;
+          }
           if (msg.role === "bot") lastBotMsg = msg.text;
         });
 
-        if (lastBotMsg) {
-          showPwaFloatingBubble(lastBotMsg);
-        }
-
+        // 会話履歴コンテキストの更新
+        state.conversationHistory = mergedLogs.map(m => ({
+          role: m.role === "user" ? "user" : "model",
+          text: m.text
+        }));
         if (state.conversationHistory.length > 20) {
           state.conversationHistory = state.conversationHistory.slice(-20);
         }
 
+        if (newAdded) {
+          if (lastBotMsg) {
+            showPwaFloatingBubble(lastBotMsg);
+          }
+          scrollToBottom();
+        }
         updateLoadPrevButton();
-        scrollToBottom();
       }
     }
   } catch (err) {
