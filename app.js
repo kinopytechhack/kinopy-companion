@@ -1095,7 +1095,7 @@ async function processRecordedAudio(audioBlob, mimeType) {
       reader.onloadend = async () => {
         try {
           const base64Data = reader.result.split(",")[1];
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
 
           const prompt = `ユーザー（きのぴぃ）からの音声録音メッセージです。
 以下の手順で処理してください：
@@ -1961,7 +1961,7 @@ async function callGeminiApi(userPrompt) {
     }
   };
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
   let data = null;
   let lastErr = null;
 
@@ -2188,7 +2188,7 @@ async function handleQuickAction(action) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
