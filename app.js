@@ -2957,9 +2957,11 @@ async function fetchGasJsonp(action, paramsObj = {}) {
     throw new Error("No syncGasUrl");
   }
 
+  const token = DEFAULT_CONFIG.token;
+
   // 1. まず標準の fetch で試行
   try {
-    const params = new URLSearchParams(Object.assign({}, paramsObj, { action: action }));
+    const params = new URLSearchParams(Object.assign({ token: token }, paramsObj, { action: action }));
     const url = `${state.syncGasUrl}?${params.toString()}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -2978,7 +2980,7 @@ async function fetchGasJsonp(action, paramsObj = {}) {
   // 2. JSONP によるフォールバック通信
   return new Promise((resolve, reject) => {
     const callbackName = "gasCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-    const params = new URLSearchParams(Object.assign({}, paramsObj, {
+    const params = new URLSearchParams(Object.assign({ token: token }, paramsObj, {
       action: action,
       callback: callbackName
     }));
