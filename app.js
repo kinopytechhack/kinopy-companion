@@ -1444,7 +1444,7 @@ function stopLipSync() {
   }
 }
 
-// PWAミニフローティング吹き出し制御（常時表示仕様）
+// PWAミニフローティング吹き出し制御（常時表示仕様・チラつき完全防止）
 function showPwaFloatingBubble(text) {
   const bubbleEl = elements.mascotFloatingBubble;
   const bubbleTextEl = elements.mascotFloatingBubbleText;
@@ -1453,18 +1453,13 @@ function showPwaFloatingBubble(text) {
   const targetText = (text || "").trim();
   const currentText = (bubbleTextEl.textContent || "").trim();
 
-  // すでに同じ内容が表示中の場合は再描画アニメーションによるチラつきを完全に防止
+  // すでに同じ内容が表示中の場合は何もしない
   if (currentText === targetText && !bubbleEl.classList.contains("hidden") && !bubbleEl.classList.contains("fade-out")) {
     return;
   }
 
   bubbleTextEl.textContent = text;
   bubbleEl.classList.remove("hidden", "fade-out");
-
-  // 吹き出しアニメーション再トリガー
-  bubbleEl.style.animation = 'none';
-  bubbleEl.offsetHeight; // reflow
-  bubbleEl.style.animation = 'floatBubbleIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
 
   // 吹き出しタップでチャットを開く
   bubbleEl.onclick = (e) => {

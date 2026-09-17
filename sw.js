@@ -1,4 +1,4 @@
-// SW Cache Clear v2026-09-16-0240
+// SW Cache Clear v2026-09-18-0135
 self.addEventListener("install", (e) => {
   self.skipWaiting();
 });

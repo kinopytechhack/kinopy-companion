@@ -271,8 +271,7 @@ body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   z-index: 100;
   pointer-events: auto;
-  transition: transform 0.2s ease, opacity 0.3s ease;
-  animation: floatBubbleIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .floating-bubble.fade-out {
