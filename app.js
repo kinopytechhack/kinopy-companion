@@ -1661,6 +1661,20 @@ function formatDateLabel(dateObj) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 (${weekDays[d.getDay()]})`;
 }
 
+function deduplicateLogs(logs) {
+  if (!Array.isArray(logs)) return [];
+  const seen = new Set();
+  const result = [];
+  logs.forEach(msg => {
+    const key = normalizeLogKey(msg.time || "", msg.role || "", msg.text || "");
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(msg);
+    }
+  });
+  return result;
+}
+
 function initChatTimeline() {
   elements.chatTimeline.innerHTML = "";
   state.oldestLoadedDate = getLogicalDate().dateObj;
@@ -1678,11 +1692,16 @@ function initChatTimeline() {
   // 2. 本日の日付セパレーター
   elements.chatTimeline.appendChild(createDateSeparatorElement(formatDateLabel(getLogicalDate().dateObj)));
 
-  // 3. 本日のチャット読み込み
+  // 3. 本日のチャット読み込み（重複ログを即時自動パージ）
   const todayYmd = getTodayYmd();
   registerLogDate(todayYmd);
 
-  const todayLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+  const rawLogs = JSON.parse(localStorage.getItem(`companion_chat_${todayYmd}`) || "[]");
+  const todayLogs = deduplicateLogs(rawLogs);
+  if (rawLogs.length !== todayLogs.length) {
+    localStorage.setItem(`companion_chat_${todayYmd}`, JSON.stringify(todayLogs));
+  }
+
   let lastBotMsg = null;
   if (todayLogs.length > 0) {
     todayLogs.forEach((msg) => {
