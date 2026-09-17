@@ -44,7 +44,10 @@ const state = {
   dailyContextFetchDate: null,
   dailyContextUpdatedAt: null,
   autoRefreshed930Date: null,
+  notifyUpcoming: localStorage.getItem("notify_upcoming") !== "false",
+  notifyNight: localStorage.getItem("notify_night") !== "false",
   notifyHourly: localStorage.getItem("notify_hourly") !== "false",
+  notifyMonologue: localStorage.getItem("notify_monologue") !== "false",
   lastHourlyChimeKey: null,
   isCoachingMode: false,
   coachingTurnCount: 0,
@@ -116,7 +119,10 @@ const elements = {
   voiceSpeaker: document.getElementById("voice-speaker"),
   voicePitch: document.getElementById("voice-pitch"),
   voiceRate: document.getElementById("voice-rate"),
+  notifyUpcomingToggle: document.getElementById("notify-upcoming-toggle"),
   notifyHourlyToggle: document.getElementById("notify-hourly-toggle"),
+  notifyNightToggle: document.getElementById("notify-night-toggle"),
+  notifyMonologueToggle: document.getElementById("notify-monologue-toggle"),
   pitchVal: document.getElementById("pitch-val"),
   rateVal: document.getElementById("rate-val"),
   btnVoicePreview: document.getElementById("btn-voice-preview"),
@@ -413,7 +419,10 @@ function loadSettingsToUI() {
   if (elements.voiceSpeaker) elements.voiceSpeaker.value = state.voiceSpeaker;
   if (elements.voicePitch) elements.voicePitch.value = state.voicePitch;
   if (elements.voiceRate) elements.voiceRate.value = state.voiceRate;
+  if (elements.notifyUpcomingToggle) elements.notifyUpcomingToggle.checked = state.notifyUpcoming;
   if (elements.notifyHourlyToggle) elements.notifyHourlyToggle.checked = state.notifyHourly;
+  if (elements.notifyNightToggle) elements.notifyNightToggle.checked = state.notifyNight;
+  if (elements.notifyMonologueToggle) elements.notifyMonologueToggle.checked = state.notifyMonologue;
   if (elements.pitchVal) elements.pitchVal.textContent = state.voicePitch.toFixed(1);
   if (elements.rateVal) elements.rateVal.textContent = state.voiceRate.toFixed(1);
   updateTokenDisplay();
@@ -461,6 +470,10 @@ function updateBadgeState(status) {
   });
   if (elements.voiceToggle) {
     elements.voiceToggle.checked = state.voiceEnabled;
+  }
+  // チャット画面表示時はヘッダーの音声ボタンを確実に非表示
+  if (elements.btnSoundToggle) {
+    elements.btnSoundToggle.style.display = state.isPanelOpen ? "none" : "flex";
   }
 }
 
@@ -2786,8 +2799,17 @@ function saveSettings(showBubble = true) {
   state.voiceSpeaker = elements.voiceSpeaker.value;
   state.voicePitch = parseFloat(elements.voicePitch.value);
   state.voiceRate = parseFloat(elements.voiceRate.value);
+  if (elements.notifyUpcomingToggle) {
+    state.notifyUpcoming = elements.notifyUpcomingToggle.checked;
+  }
   if (elements.notifyHourlyToggle) {
     state.notifyHourly = elements.notifyHourlyToggle.checked;
+  }
+  if (elements.notifyNightToggle) {
+    state.notifyNight = elements.notifyNightToggle.checked;
+  }
+  if (elements.notifyMonologueToggle) {
+    state.notifyMonologue = elements.notifyMonologueToggle.checked;
   }
 
   localStorage.setItem("gemini_enabled", state.geminiEnabled);
@@ -2798,7 +2820,10 @@ function saveSettings(showBubble = true) {
   localStorage.setItem("voice_speaker", state.voiceSpeaker);
   localStorage.setItem("voice_pitch", state.voicePitch);
   localStorage.setItem("voice_rate", state.voiceRate);
+  localStorage.setItem("notify_upcoming", state.notifyUpcoming);
   localStorage.setItem("notify_hourly", state.notifyHourly);
+  localStorage.setItem("notify_night", state.notifyNight);
+  localStorage.setItem("notify_monologue", state.notifyMonologue);
 
   updateBadgeState();
   if (showBubble) {
@@ -3144,6 +3169,7 @@ function getRandomPwaMonologueDelay() {
 let nextPwaMonologueDelay = getRandomPwaMonologueDelay();
 
 function checkPwaMonologueTimer() {
+  if (!state.notifyMonologue) return;
   const now = Date.now();
   const hour = new Date().getHours();
   if (hour >= 0 && hour < 5) return;

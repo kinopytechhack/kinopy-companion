@@ -18,7 +18,7 @@
   <link rel="shortcut icon" href="favicon.ico?v=20260917-2255">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260917-2335">
+  <link rel="stylesheet" href="style.css?v=20260917-2355">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -266,6 +266,13 @@
               <span class="slider round"></span>
             </label>
           </div>
+          <div class="form-group form-row-toggle" style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;">
+            <label for="notify-monologue-toggle" style="font-size:13px;font-weight:600;color:#334155;">キャラクターの定期的な独り言</label>
+            <label class="switch">
+              <input type="checkbox" id="notify-monologue-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
           <div class="form-divider" style="height:1px;background:rgba(0,0,0,0.06);margin:12px 0;"></div>
           <div class="form-group">
             <label>日次前提データ（天気・睡眠・朝刊）</label>
@@ -300,6 +307,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260917-2335"></script>
+  <script src="app.js?v=20260917-2355"></script>
 </body>
 </html>
