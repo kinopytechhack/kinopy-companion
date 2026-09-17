@@ -544,38 +544,38 @@ function setupEventListeners() {
     if (mascotSc) mascotSc.classList.add("simple-mode");
   }
 
-  // 1. マスコット画面全体タップでチャット画面を開く
+  // 1. マスコット画面全体タップ → シンプルモード（吹き出し・タスクバー）のトグル
   const mascotSc = document.getElementById("mascot-screen");
   if (mascotSc) {
     mascotSc.addEventListener("click", (e) => {
       if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
       e.stopPropagation();
-      openChatPanel();
+      toggleSimpleMode();
     });
   }
 
-  // 2. アバター画像＆コンテナ＆吹き出しタップでチャット画面を開く
+  // 2. アバター画像・コンテナ・画面タップ → シンプルモード（吹き出し・タスクバー）トグル
   const avatarRing = document.querySelector(".mascot-avatar-ring");
   const avatarImg = document.getElementById("mascot-avatar-img");
   const avatarContainer = document.querySelector(".mascot-avatar-container");
-  const floatingBubble = document.getElementById("mascot-floating-bubble");
   const touchArea = document.getElementById("mascot-touch-area");
 
-  [avatarRing, avatarImg, avatarContainer, floatingBubble, touchArea].forEach(el => {
+  [avatarRing, avatarImg, avatarContainer, touchArea].forEach(el => {
     if (el) {
       el.addEventListener("click", (e) => {
-        if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
+        if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge") || e.target.closest("#mascot-floating-bubble")) return;
         e.stopPropagation();
-        openChatPanel();
+        toggleSimpleMode();
       });
     }
   });
 
-  if (touchArea) {
-    touchArea.addEventListener("dblclick", (e) => {
-      if (e.target.closest("#mascot-task-bar") || e.target.closest("button") || e.target.closest("#mascot-mini-badge")) return;
+  // 3. 吹き出し（メッセージ）をタップ → チャットを開く
+  const floatingBubble = document.getElementById("mascot-floating-bubble");
+  if (floatingBubble) {
+    floatingBubble.addEventListener("click", (e) => {
       e.stopPropagation();
-      toggleSimpleMode();
+      openChatPanel();
     });
   }
 
@@ -1449,6 +1449,11 @@ function showPwaFloatingBubble(text) {
   const bubbleEl = elements.mascotFloatingBubble;
   const bubbleTextEl = elements.mascotFloatingBubbleText;
   if (!bubbleEl || !bubbleTextEl) return;
+
+  // すでに同じ内容が表示中の場合は再描画アニメーションによるチラつきを防止
+  if (bubbleTextEl.textContent === text && !bubbleEl.classList.contains("hidden") && !bubbleEl.classList.contains("fade-out")) {
+    return;
+  }
 
   bubbleTextEl.textContent = text;
   bubbleEl.classList.remove("hidden", "fade-out");
@@ -3217,6 +3222,16 @@ function getRandomPwaMonologueDelay() {
   return (30 + Math.random() * 30) * 60 * 1000;
 }
 let nextPwaMonologueDelay = getRandomPwaMonologueDelay();
+
+function recordPwaActivity() {
+  lastPwaActivityTime = Date.now();
+}
+
+// ユーザーの何らかの操作（タップ・クリック・入力・スクロール等）でタイマーをリセット
+const activityEvents = ["click", "touchstart", "keydown", "scroll"];
+activityEvents.forEach(evt => {
+  document.addEventListener(evt, recordPwaActivity, { passive: true });
+});
 
 function checkPwaMonologueTimer() {
   if (!state.notifyMonologue) return;

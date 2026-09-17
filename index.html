@@ -9,16 +9,16 @@
   <title>Kinopy's Second</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260918-0025">
+  <link rel="manifest" href="manifest.json?v=20260918-0125">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Kinopy's Second">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-0025">
-  <link rel="icon" href="assets/icon.png?v=20260918-0025">
-  <link rel="shortcut icon" href="favicon.ico?v=20260918-0025">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-0125">
+  <link rel="icon" href="assets/icon.png?v=20260918-0125">
+  <link rel="shortcut icon" href="favicon.ico?v=20260918-0125">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260918-0025">
+  <link rel="stylesheet" href="style.css?v=20260918-0125">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -45,6 +45,19 @@
       if (m) m.classList.remove('hidden');
       if (snd) snd.style.display = 'flex';
       if (window.state) window.state.isPanelOpen = false;
+    };
+    window.pwaToggleSimpleMode = function(e) {
+      if (e) {
+        if (e.target.closest && (e.target.closest('button') || e.target.closest('#mascot-task-bar') || e.target.closest('#mascot-mini-badge') || e.target.closest('#mascot-floating-bubble'))) return;
+        e.stopPropagation();
+      }
+      var m = document.getElementById('mascot-screen');
+      if (m) {
+        m.classList.toggle('simple-mode');
+        var isSimple = m.classList.contains('simple-mode');
+        localStorage.setItem('companion_simple_mode', isSimple);
+        if (window.state) window.state.isSimpleMode = isSimple;
+      }
     };
     window.pwaToggleScreen = function(e) {
       if (e) e.stopPropagation();
@@ -76,19 +89,19 @@
     </header>
 
     <!-- A. キャラクター単体画面（初期表示・Mac版コンパクト状態同等） -->
-    <div id="mascot-screen" class="mascot-screen" onclick="window.pwaOpenChat(event)">
-      <div class="mascot-main-area" id="mascot-touch-area" onclick="window.pwaOpenChat(event)" title="タップでチャットを開く">
-        <!-- 独り言・Kumapy予定通知用ミニ吹き出し -->
-        <div class="floating-bubble hidden" id="mascot-floating-bubble" onclick="window.pwaOpenChat(event)">
+    <div id="mascot-screen" class="mascot-screen" onclick="window.pwaToggleSimpleMode(event)">
+      <div class="mascot-main-area" id="mascot-touch-area" onclick="window.pwaToggleSimpleMode(event)" title="タップでメッセージ・タスク表示切替">
+        <!-- 独り言・Kumapy予定通知用ミニ吹き出し（タップでチャットを開く） -->
+        <div class="floating-bubble hidden" id="mascot-floating-bubble" onclick="window.pwaOpenChat(event)" title="タップでチャットを開く">
           <div class="floating-bubble-text" id="mascot-floating-bubble-text"></div>
           <div class="floating-bubble-tail"></div>
         </div>
 
-        <div class="mascot-avatar-container" onclick="window.pwaOpenChat(event)">
+        <div class="mascot-avatar-container" onclick="window.pwaToggleSimpleMode(event)">
           <div class="mascot-avatar-ring">
             <img src="assets/01_normal.png" alt="Kinopy's Second" id="mascot-avatar-img" class="mascot-avatar-img">
           </div>
-          <div class="mini-badge hidden" id="mascot-mini-badge" title="ドラッグで移動 / タップでチャットを開く"></div>
+          <div class="mini-badge hidden" id="mascot-mini-badge" title="ドラッグで移動"></div>
         </div>
 
         <!-- 下部横長1行の予定・タスクステータス枠 -->
@@ -315,6 +328,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260918-0025"></script>
+  <script src="app.js?v=20260918-0125"></script>
 </body>
 </html>
