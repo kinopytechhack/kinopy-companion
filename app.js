@@ -726,8 +726,12 @@ function setupEventListeners() {
   if (elements.headerAvatarBtn) {
     elements.headerAvatarBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      closeChatPanel();
-      syncFromCloud();
+      if (state.isPanelOpen) {
+        closeChatPanel();
+        syncFromCloud();
+      } else {
+        openChatPanel();
+      }
     });
   }
   // モーダル排他制御ヘルパー

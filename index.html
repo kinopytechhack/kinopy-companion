@@ -42,21 +42,36 @@
       if (m) m.classList.remove('hidden');
       if (window.state) window.state.isPanelOpen = false;
     };
+    window.pwaToggleScreen = function(e) {
+      if (e) e.stopPropagation();
+      var c = document.getElementById('chat-panel-screen');
+      if (c && !c.classList.contains('hidden')) {
+        window.pwaCloseChat(e);
+      } else {
+        window.pwaOpenChat(e);
+      }
+    };
   </script>
 </head>
 <body>
   <div class="app-container">
     
+    <!-- 共通ヘッダー (常時表示・Vault共通仕様準拠) -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="avatar-wrapper" id="header-avatar-btn" onclick="window.pwaToggleScreen(event)" title="画面切り替え（タップでキャラ/チャット切替）">
+          <img src="assets/icon.jpg" alt="Kinopy's Second Logo" id="header-logo-img" class="app-logo">
+        </div>
+        <h1 class="app-title-h1">Kinopy's Second <span class="app-ver-badge">ver.1.0</span></h1>
+      </div>
+      <div class="header-actions">
+        <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+        <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
+      </div>
+    </header>
+
     <!-- A. キャラクター単体画面（初期表示・Mac版コンパクト状態同等） -->
     <div id="mascot-screen" class="mascot-screen" onclick="window.pwaOpenChat(event)">
-      <div class="mascot-top-bar">
-        <span class="mascot-app-title">Kinopy's Second</span>
-        <div class="mascot-top-actions">
-          <button id="btn-mascot-sound-toggle" class="mini-icon-btn" title="音声読み上げオン/オフ">🔊</button>
-          <button id="btn-mascot-settings" class="mini-icon-btn" title="設定">⚙️</button>
-        </div>
-      </div>
-      
       <div class="mascot-main-area" id="mascot-touch-area" onclick="window.pwaOpenChat(event)" title="タップでチャットを開く">
         <!-- 独り言・Kumapy予定通知用ミニ吹き出し -->
         <div class="floating-bubble hidden" id="mascot-floating-bubble" onclick="window.pwaOpenChat(event)">
@@ -81,21 +96,7 @@
 
     <!-- B. チャット画面（展開時表示） -->
     <div id="chat-panel-screen" class="chat-panel-screen hidden">
-      <!-- 1. ヘッダー -->
-      <header class="app-header">
-        <div class="header-left">
-          <div class="avatar-wrapper" id="header-avatar-btn" onclick="window.pwaCloseChat(event)" title="タップでキャラ画面に戻る">
-            <img src="assets/icon.jpg" alt="Kinopy's Second Logo" id="header-logo-img" class="app-logo">
-          </div>
-          <h1 class="app-title-h1">Kinopy's Second <span class="app-ver-badge">ver.1.0</span></h1>
-        </div>
-        <div class="header-actions">
-          <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
-          <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
-        </div>
-      </header>
-
-      <!-- 2. Kumapy 進行中タスク＆直近予定ステータスバー -->
+      <!-- 1. Kumapy 進行中タスク＆直近予定ステータスバー -->
       <div class="kumapy-status-bar" id="kumapy-status-bar" title="タップでKumapyを開く">
         <a href="https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10" target="_blank" rel="noopener noreferrer" class="kumapy-status-main" id="kumapy-status-main" style="text-decoration:none; color:inherit; display:flex; align-items:center; gap:6px; flex:1; overflow:hidden;">
           <span class="kumapy-icon" id="kumapy-icon">🎯</span>
