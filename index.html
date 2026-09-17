@@ -18,7 +18,7 @@
   <link rel="shortcut icon" href="favicon.ico?v=20260917-2255">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260917-2255">
+  <link rel="stylesheet" href="style.css?v=20260917-2335">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -66,6 +66,7 @@
       </div>
       <div class="header-actions">
         <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+        <button id="btn-sound-toggle" class="mini-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
         <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
       </div>
     </header>
@@ -143,7 +144,7 @@
         <div class="quick-actions-right">
           <button id="btn-voice-input" class="quick-icon-btn voice-input-btn" title="🎤 音声入力 (クリックで録音開始/停止)">🎤</button>
           <button id="btn-memo-manage" class="quick-icon-btn" title="📋 メモ管理を開く">📋</button>
-          <button id="btn-sound-toggle" class="quick-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
+          <button id="btn-sound-toggle-bottom" class="quick-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
         </div>
       </div>
 
@@ -281,6 +282,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260916-1055"></script>
+  <script src="app.js?v=20260917-2335"></script>
 </body>
 </html>

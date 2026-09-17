@@ -88,6 +88,7 @@ const elements = {
   btnSend: document.getElementById("btn-send"),
   btnVoiceInput: document.getElementById("btn-voice-input"),
   btnSoundToggle: document.getElementById("btn-sound-toggle"),
+  btnSoundToggleBottom: document.getElementById("btn-sound-toggle-bottom"),
   btnSettingsToggle: document.getElementById("btn-settings-toggle"),
   btnSettingsClose: document.getElementById("btn-settings-close"),
   btnSaveSettings: document.getElementById("btn-save-settings"),
@@ -452,16 +453,12 @@ function updateBadgeState(status) {
     }
   }
   const soundIcon = state.voiceEnabled ? "🔊" : "🔇";
-  if (elements.btnSoundToggle) {
-    elements.btnSoundToggle.textContent = soundIcon;
-    elements.btnSoundToggle.title = state.voiceEnabled ? "音声読み上げ: オン (クリックでミュート)" : "音声読み上げ: オフ (クリックでオン)";
-    elements.btnSoundToggle.classList.toggle("muted", !state.voiceEnabled);
-  }
-  if (elements.btnMascotSoundToggle) {
-    elements.btnMascotSoundToggle.textContent = soundIcon;
-    elements.btnMascotSoundToggle.title = state.voiceEnabled ? "音声読み上げ: オン (クリックでミュート)" : "音声読み上げ: オフ (クリックでオン)";
-    elements.btnMascotSoundToggle.classList.toggle("muted", !state.voiceEnabled);
-  }
+  const soundBtns = [elements.btnSoundToggle, elements.btnSoundToggleBottom, elements.btnMascotSoundToggle].filter(Boolean);
+  soundBtns.forEach(btn => {
+    btn.textContent = soundIcon;
+    btn.title = state.voiceEnabled ? "音声読み上げ: オン (クリックでミュート)" : "音声読み上げ: オフ (クリックでオン)";
+    btn.classList.toggle("muted", !state.voiceEnabled);
+  });
   if (elements.voiceToggle) {
     elements.voiceToggle.checked = state.voiceEnabled;
   }
@@ -815,12 +812,9 @@ function setupEventListeners() {
     }
   };
 
-  if (elements.btnSoundToggle) {
-    elements.btnSoundToggle.addEventListener("click", toggleSoundState);
-  }
-  if (elements.btnMascotSoundToggle) {
-    elements.btnMascotSoundToggle.addEventListener("click", toggleSoundState);
-  }
+  [elements.btnSoundToggle, elements.btnSoundToggleBottom, elements.btnMascotSoundToggle].filter(Boolean).forEach(btn => {
+    btn.addEventListener("click", toggleSoundState);
+  });
 
   // 送信（クリック）
   elements.btnSend.addEventListener("click", () => {
