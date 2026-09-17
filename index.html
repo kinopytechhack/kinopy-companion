@@ -241,10 +241,24 @@
               <input type="range" id="voice-rate" min="0.5" max="1.5" step="0.1" value="1.0">
             </div>
           </div>
-          <div class="form-group form-row-toggle" style="display:flex;align-items:center;justify-content:space-between;margin:10px 0;">
+          <div class="form-group form-row-toggle" style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;">
+            <label for="notify-upcoming-toggle" style="font-size:13px;font-weight:600;color:#334155;">予定の時間ぴったりリマインド</label>
+            <label class="switch">
+              <input type="checkbox" id="notify-upcoming-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="form-group form-row-toggle" style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;">
             <label for="notify-hourly-toggle" style="font-size:13px;font-weight:600;color:#334155;">毎正時の時報アナウンス</label>
             <label class="switch">
               <input type="checkbox" id="notify-hourly-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="form-group form-row-toggle" style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;">
+            <label for="notify-night-toggle" style="font-size:13px;font-weight:600;color:#334155;">深夜の夜更かしストッパー</label>
+            <label class="switch">
+              <input type="checkbox" id="notify-night-toggle" checked>
               <span class="slider round"></span>
             </label>
           </div>
