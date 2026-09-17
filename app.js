@@ -221,9 +221,9 @@ document.addEventListener("DOMContentLoaded", () => {
   safeRun("fetchKumapyTasks", fetchKumapyTasks);
   safeRun("initPullToRefresh", initPullToRefresh);
   
-  // 定期バックグラウンド自動同期 (20秒ごと)
+  // 定期バックグラウンド自動同期
   setInterval(fetchKumapyTasks, 30 * 1000);
-  setInterval(syncFromCloud, 20 * 1000);
+  setInterval(syncFromCloud, 45 * 1000);
   
   // クラウド同期初回実行
   syncFromCloud();
@@ -1450,8 +1450,11 @@ function showPwaFloatingBubble(text) {
   const bubbleTextEl = elements.mascotFloatingBubbleText;
   if (!bubbleEl || !bubbleTextEl) return;
 
-  // すでに同じ内容が表示中の場合は再描画アニメーションによるチラつきを防止
-  if (bubbleTextEl.textContent === text && !bubbleEl.classList.contains("hidden") && !bubbleEl.classList.contains("fade-out")) {
+  const targetText = (text || "").trim();
+  const currentText = (bubbleTextEl.textContent || "").trim();
+
+  // すでに同じ内容が表示中の場合は再描画アニメーションによるチラつきを完全に防止
+  if (currentText === targetText && !bubbleEl.classList.contains("hidden") && !bubbleEl.classList.contains("fade-out")) {
     return;
   }
 
@@ -3085,9 +3088,9 @@ async function syncFromCloud() {
         const existingBubbles = elements.chatTimeline.querySelectorAll(".chat-bubble-row");
         const renderedKeys = new Set();
         existingBubbles.forEach(row => {
-          const textEl = row.querySelector(".chat-bubble-text");
-          const timeEl = row.querySelector(".chat-bubble-time");
-          const isUser = row.classList.contains("user-message");
+          const textEl = row.querySelector(".bubble-text");
+          const timeEl = row.querySelector(".bubble-time");
+          const isUser = row.classList.contains("user-row") || row.classList.contains("user");
           if (textEl) {
             const t = (textEl.textContent || "").trim();
             const tm = timeEl ? (timeEl.textContent || "").trim() : "";
@@ -3118,7 +3121,7 @@ async function syncFromCloud() {
         }
 
         if (newAdded) {
-          if (lastBotMsg) {
+          if (lastBotMsg && (!elements.mascotFloatingBubbleText || elements.mascotFloatingBubbleText.textContent.trim() !== lastBotMsg.trim())) {
             showPwaFloatingBubble(lastBotMsg);
           }
           scrollToBottom();
