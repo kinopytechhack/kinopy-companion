@@ -9,16 +9,16 @@
   <title>Kinopy's Second</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260917-2255">
+  <link rel="manifest" href="manifest.json?v=20260918-0025">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Kinopy's Second">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260917-2255">
-  <link rel="icon" href="assets/icon.png?v=20260917-2255">
-  <link rel="shortcut icon" href="favicon.ico?v=20260917-2255">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-0025">
+  <link rel="icon" href="assets/icon.png?v=20260918-0025">
+  <link rel="shortcut icon" href="favicon.ico?v=20260918-0025">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260917-2355">
+  <link rel="stylesheet" href="style.css?v=20260918-0025">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -92,7 +92,7 @@
         </div>
 
         <!-- 下部横長1行の予定・タスクステータス枠 -->
-        <a href="https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10" target="_blank" rel="noopener noreferrer" class="mascot-task-bar" id="mascot-task-bar" title="タップでKumapyを開く" style="text-decoration:none; color:inherit;">
+        <a href="#" class="mascot-task-bar" id="mascot-task-bar" title="タップでKumapyを開く" style="text-decoration:none; color:inherit;" onclick="return false;">
           <span class="char-task-icon" id="pwa-char-task-icon">🎯</span>
           <span class="char-task-text" id="pwa-char-task-text">Kumapyを読み込み中...</span>
         </a>
@@ -103,7 +103,7 @@
     <div id="chat-panel-screen" class="chat-panel-screen hidden">
       <!-- 1. Kumapy 進行中タスク＆直近予定ステータスバー -->
       <div class="kumapy-status-bar" id="kumapy-status-bar" title="タップでKumapyを開く">
-        <a href="https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10" target="_blank" rel="noopener noreferrer" class="kumapy-status-main" id="kumapy-status-main" style="text-decoration:none; color:inherit; display:flex; align-items:center; gap:6px; flex:1; overflow:hidden;">
+        <a href="#" class="kumapy-status-main" id="kumapy-status-main" style="text-decoration:none; color:inherit; display:flex; align-items:center; gap:6px; flex:1; overflow:hidden;" onclick="return false;">
           <span class="kumapy-icon" id="kumapy-icon">🎯</span>
           <span class="kumapy-text" id="kumapy-text">Kumapy連携を読み込み中...</span>
         </a>
@@ -193,6 +193,14 @@
           <div class="form-group">
             <label for="kumapy-url">Kumapy スプレッドシート URL / ID</label>
             <input type="text" id="kumapy-url" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+          </div>
+          <div class="form-group">
+            <label for="kumapy-webapp-url">Kumapy WebApp URL（トークン付き）</label>
+            <input type="text" id="kumapy-webapp-url" placeholder="https://script.google.com/a/macros/.../exec?key=...">
+          </div>
+          <div class="form-group">
+            <label for="metrics-sheet-id">天気・睡眠シートID（Metricsスプレッドシート）</label>
+            <input type="text" id="metrics-sheet-id" placeholder="スプレッドシートID（URL中の /d/xxxxx 部分）">
           </div>
           <div class="form-group">
             <div class="form-label-row">
@@ -307,6 +315,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260917-2355"></script>
+  <script src="app.js?v=20260918-0025"></script>
 </body>
 </html>

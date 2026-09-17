@@ -30,15 +30,12 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはきのぴぃ専属のAIセコンド�
 【出力制約】
 - 結論から1〜2文（60〜80文字程度）。思考整理・要約時のみスッキリ3〜4行の箇条書きOK。説教や長文は不要。`;
 
-const DEFAULT_SYNC_GAS_URL = "https://script.google.com/macros/s/AKfycbyNbQePEOJjQmWqaAghvCs94mEraxRCEw0uPcPuJaHkw8fwbTZ7Gh9DWiTo8NLvC-w3PQ/exec";
-
-// 状態管理
-const savedSyncUrl = localStorage.getItem("companion_sync_gas_url");
-const syncGasUrl = (!savedSyncUrl || savedSyncUrl.includes("AKfycbx") || savedSyncUrl.includes("AKfycbz") || savedSyncUrl.includes("AKfycbwa")) ? DEFAULT_SYNC_GAS_URL : savedSyncUrl;
-localStorage.setItem("companion_sync_gas_url", syncGasUrl);
+// セキュリティ: URL・トークン・シートIDはコードにハードコードしない。
+// 設定モーダルから入力 → localStorage に保存する方式に統一。
+// DEFAULT_SYNC_GAS_URL はコードから撤去済み。
 
 const METRICS_CONFIG = {
-  sheetId: '1KaMsdvgVBvPku45Ut65VApzm5Mk_ggb8ZMNGsU84iHE',
+  // sheetId は localStorage の metrics_sheet_id キーから取得（ここでは参照しない）
   weatherSheetName: 'Weather',
   sleepSheetName: 'Sleep'
 };
@@ -46,8 +43,10 @@ const METRICS_CONFIG = {
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
-  kumapyUrl: localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU",
-  syncGasUrl: syncGasUrl, // クラウド同期用GAS URL
+  kumapyUrl: localStorage.getItem("kumapy_url") || "",           // Kumapy スプレッドシートID/URL
+  kumapyWebAppUrl: localStorage.getItem("kumapy_webapp_url") || "", // Kumapy WebApp URL（トークン付き）
+  metricsSheetId: localStorage.getItem("metrics_sheet_id") || "", // 天気・睡眠シートID
+  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || "", // クラウド同期用GAS URL
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
@@ -129,6 +128,8 @@ const elements = {
   geminiApiToggle: document.getElementById("gemini-api-toggle"),
   geminiApiKey: document.getElementById("gemini-api-key"),
   kumapyUrlInput: document.getElementById("kumapy-url"),
+  kumapyWebAppUrlInput: document.getElementById("kumapy-webapp-url"),
+  metricsSheetIdInput: document.getElementById("metrics-sheet-id"),
   companionSyncUrlInput: document.getElementById("companion-sync-url"),
   syncStatusBadge: document.getElementById("sync-status-badge"),
   voiceToggle: document.getElementById("voice-toggle"),
@@ -420,8 +421,10 @@ function updateTokenDisplay() {
 function loadSettingsToUI() {
   state.geminiApiKey = localStorage.getItem("gemini_api_key") || "";
   state.geminiEnabled = localStorage.getItem("gemini_enabled") !== "false";
-  state.kumapyUrl = localStorage.getItem("kumapy_url") || "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU";
-  state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || DEFAULT_SYNC_GAS_URL;
+  state.kumapyUrl = localStorage.getItem("kumapy_url") || "";
+  state.kumapyWebAppUrl = localStorage.getItem("kumapy_webapp_url") || "";
+  state.metricsSheetId = localStorage.getItem("metrics_sheet_id") || "";
+  state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || "";
   state.voiceEnabled = localStorage.getItem("voice_enabled") !== "false";
   state.voiceSpeaker = localStorage.getItem("voice_speaker") || "11";
   state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
@@ -430,6 +433,8 @@ function loadSettingsToUI() {
   if (elements.geminiApiToggle) elements.geminiApiToggle.checked = state.geminiEnabled;
   if (elements.geminiApiKey) elements.geminiApiKey.value = state.geminiApiKey;
   if (elements.kumapyUrlInput) elements.kumapyUrlInput.value = state.kumapyUrl;
+  if (elements.kumapyWebAppUrlInput) elements.kumapyWebAppUrlInput.value = state.kumapyWebAppUrl;
+  if (elements.metricsSheetIdInput) elements.metricsSheetIdInput.value = state.metricsSheetId;
   if (elements.companionSyncUrlInput) elements.companionSyncUrlInput.value = state.syncGasUrl;
   if (elements.voiceToggle) elements.voiceToggle.checked = state.voiceEnabled;
   if (elements.voiceSpeaker) elements.voiceSpeaker.value = state.voiceSpeaker;
@@ -444,6 +449,7 @@ function loadSettingsToUI() {
   updateTokenDisplay();
   updateDailyContextStatusUI();
 }
+
 
 function updateDailyContextStatusUI() {
   if (!elements.dailyContextStatusText) return;
@@ -575,7 +581,11 @@ function setupEventListeners() {
 
   // Kumapy WebApp を別ウィンドウ/タブで開く（iOS PWAポップアップブロック回避）
   const openKumapyInBrowser = () => {
-    const kumapyWebAppUrl = "https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10";
+    const kumapyWebAppUrl = state.kumapyWebAppUrl || "";
+    if (!kumapyWebAppUrl) {
+      addMessageBubble("bot", "Kumapy WebApp URLが設定されていません。設定画面で入力してください。", null, true);
+      return;
+    }
     try {
       const a = document.createElement("a");
       a.href = kumapyWebAppUrl;
@@ -2445,13 +2455,20 @@ function parseCsv(csvText) {
 
 async function fetchKumapyTasks() {
   let raw = (state.kumapyUrl || "").trim();
-  let sheetId = "1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU";
+  let sheetId = "";
 
   const match = raw.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (match && match[1]) {
     sheetId = match[1];
   } else if (raw && !raw.includes("http") && !raw.includes("/")) {
     sheetId = raw;
+  }
+
+  if (!sheetId) {
+    // Kumapy スプレッドシートID が未設定
+    updatePwaCharacterTaskBar("⚙️", "KumapyシートIDを設定してください", "設定画面 > Kumapy スプレッドシート URL / ID");
+    if (elements.btnKumapyRefresh) elements.btnKumapyRefresh.classList.remove("spinning");
+    return;
   }
 
   if (elements.btnKumapyRefresh) elements.btnKumapyRefresh.classList.add("spinning");
@@ -2599,8 +2616,13 @@ async function fetchWeatherData(force = false) {
     return state.todayWeather;
   }
 
+  if (!state.metricsSheetId) {
+    console.warn('fetchWeatherData: metricsSheetId が未設定のためスキップ');
+    return null;
+  }
+
   try {
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${METRICS_CONFIG.sheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.weatherSheetName}`;
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${state.metricsSheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.weatherSheetName}`;
     const res = await fetch(csvUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -2642,8 +2664,12 @@ async function fetchWeatherData(force = false) {
 
 // 😴 Sleep データ取得（Metrics スプレッドシート - Sleepタブ）
 async function fetchSleepData(force = false) {
+  if (!state.metricsSheetId) {
+    console.warn('fetchSleepData: metricsSheetId が未設定のためスキップ');
+    return null;
+  }
   try {
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${METRICS_CONFIG.sheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.sleepSheetName}`;
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${state.metricsSheetId}/gviz/tq?tqx=out:csv&sheet=${METRICS_CONFIG.sleepSheetName}`;
     const res = await fetch(csvUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -2808,8 +2834,14 @@ function saveSettings(showBubble = true) {
   state.geminiEnabled = elements.geminiApiToggle.checked;
   state.geminiApiKey = elements.geminiApiKey.value.trim();
   state.kumapyUrl = elements.kumapyUrlInput.value.trim();
+  if (elements.kumapyWebAppUrlInput) {
+    state.kumapyWebAppUrl = elements.kumapyWebAppUrlInput.value.trim();
+  }
+  if (elements.metricsSheetIdInput) {
+    state.metricsSheetId = elements.metricsSheetIdInput.value.trim();
+  }
   if (elements.companionSyncUrlInput) {
-    state.syncGasUrl = elements.companionSyncUrlInput.value.trim() || DEFAULT_SYNC_GAS_URL;
+    state.syncGasUrl = elements.companionSyncUrlInput.value.trim();
   }
   state.voiceEnabled = elements.voiceToggle.checked;
   state.voiceSpeaker = elements.voiceSpeaker.value;
@@ -2831,6 +2863,8 @@ function saveSettings(showBubble = true) {
   localStorage.setItem("gemini_enabled", state.geminiEnabled);
   localStorage.setItem("gemini_api_key", state.geminiApiKey);
   localStorage.setItem("kumapy_url", state.kumapyUrl);
+  localStorage.setItem("kumapy_webapp_url", state.kumapyWebAppUrl);
+  localStorage.setItem("metrics_sheet_id", state.metricsSheetId);
   localStorage.setItem("companion_sync_gas_url", state.syncGasUrl);
   localStorage.setItem("voice_enabled", state.voiceEnabled);
   localStorage.setItem("voice_speaker", state.voiceSpeaker);
