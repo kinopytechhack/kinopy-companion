@@ -1826,8 +1826,10 @@ function createDateSeparatorElement(label) {
 }
 
 function createMessageBubbleElement(role, text, timeStr) {
+  const normTime = timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const rowEl = document.createElement("div");
   rowEl.className = `chat-row ${role === "user" ? "user-row" : "bot-row"}`;
+  rowEl.dataset.logKey = normalizeLogKey(normTime, role, text);
 
   const avatarEl = document.createElement("div");
   avatarEl.className = "chat-avatar";
@@ -1850,7 +1852,7 @@ function createMessageBubbleElement(role, text, timeStr) {
 
   const timeEl = document.createElement("span");
   timeEl.className = "bubble-time";
-  timeEl.textContent = timeStr || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  timeEl.textContent = normTime;
 
   metaEl.appendChild(senderEl);
   metaEl.appendChild(timeEl);
@@ -3112,15 +3114,19 @@ async function syncFromCloud(force = false) {
 
       if (elements.chatTimeline) {
         // DOM上にすでに表示されているメッセージのキーを収集
-        const existingBubbles = elements.chatTimeline.querySelectorAll(".chat-bubble-row");
+        const existingBubbles = elements.chatTimeline.querySelectorAll(".chat-row");
         const renderedKeys = new Set();
         existingBubbles.forEach(row => {
-          const textEl = row.querySelector(".bubble-text");
-          const timeEl = row.querySelector(".bubble-time");
-          const isUser = row.classList.contains("user-row") || row.classList.contains("user");
-          if (textEl) {
-            const key = normalizeLogKey(timeEl ? timeEl.textContent : "", isUser ? "user" : "bot", textEl.textContent);
-            renderedKeys.add(key);
+          if (row.dataset && row.dataset.logKey) {
+            renderedKeys.add(row.dataset.logKey);
+          } else {
+            const textEl = row.querySelector(".bubble-text");
+            const timeEl = row.querySelector(".bubble-time");
+            const isUser = row.classList.contains("user-row") || row.classList.contains("user");
+            if (textEl) {
+              const key = normalizeLogKey(timeEl ? timeEl.textContent : "", isUser ? "user" : "bot", textEl.textContent);
+              renderedKeys.add(key);
+            }
           }
         });
 
