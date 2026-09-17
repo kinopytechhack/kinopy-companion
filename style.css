@@ -13,8 +13,8 @@
 }
 
 :root {
-  --accent: #388E3C;
-  --accent-deep: #1B5E20;
+  --accent: #D97706;
+  --accent-deep: #92400E;
   --bg: #FAF7F0;
   --card: #FFFFFF;
   --ink: #3A3428;
@@ -392,7 +392,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 4px 2px 4px;
+  padding: 8px 6px;
+  background: var(--card);
+  border-bottom: 3px solid var(--accent);
   flex-shrink: 0;
 }
 
@@ -405,10 +407,10 @@ body {
 .avatar-wrapper {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
-  border: 2px solid #574c3e;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--line);
   flex-shrink: 0;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -428,10 +430,28 @@ body {
   object-fit: cover;
 }
 
+.app-title-h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.app-ver-badge {
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
 .panel-drag-title {
   font-size: 14px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--accent-deep);
   letter-spacing: -0.01em;
 }
 

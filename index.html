@@ -6,19 +6,19 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>カピパラさん - Kinopy Companion</title>
+  <title>Kinopy's Second</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260916-0240">
+  <link rel="manifest" href="manifest.json?v=20260917-2255">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="カピパラさん">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260916-0240">
-  <link rel="icon" href="assets/icon.png?v=20260916-0240">
-  <link rel="shortcut icon" href="favicon.ico?v=20260916-0240">
+  <meta name="apple-mobile-web-app-title" content="Kinopy's Second">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260917-2255">
+  <link rel="icon" href="assets/icon.png?v=20260917-2255">
+  <link rel="shortcut icon" href="favicon.ico?v=20260917-2255">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260916-0240">
+  <link rel="stylesheet" href="style.css?v=20260917-2255">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -50,7 +50,7 @@
     <!-- A. キャラクター単体画面（初期表示・Mac版コンパクト状態同等） -->
     <div id="mascot-screen" class="mascot-screen" onclick="window.pwaOpenChat(event)">
       <div class="mascot-top-bar">
-        <span class="mascot-app-title">カピパラさん</span>
+        <span class="mascot-app-title">Kinopy's Second</span>
         <div class="mascot-top-actions">
           <button id="btn-mascot-sound-toggle" class="mini-icon-btn" title="音声読み上げオン/オフ">🔊</button>
           <button id="btn-mascot-settings" class="mini-icon-btn" title="設定">⚙️</button>
@@ -66,7 +66,7 @@
 
         <div class="mascot-avatar-container" onclick="window.pwaOpenChat(event)">
           <div class="mascot-avatar-ring">
-            <img src="assets/01_normal.png" alt="カピパラさん" id="mascot-avatar-img" class="mascot-avatar-img">
+            <img src="assets/01_normal.png" alt="Kinopy's Second" id="mascot-avatar-img" class="mascot-avatar-img">
           </div>
           <div class="mini-badge hidden" id="mascot-mini-badge" title="ドラッグで移動 / タップでチャットを開く"></div>
         </div>
@@ -85,12 +85,12 @@
       <header class="app-header">
         <div class="header-left">
           <div class="avatar-wrapper" id="header-avatar-btn" onclick="window.pwaCloseChat(event)" title="タップでキャラ画面に戻る">
-            <img src="assets/avatar_face_flipped.png" alt="カピパラさん" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.png'">
+            <img src="assets/avatar_face_flipped.png" alt="Kinopy's Second" id="header-avatar-img" class="header-avatar-img" onerror="this.src='assets/icon.png'">
           </div>
-          <span class="panel-drag-title">カピパラさん</span>
-          <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+          <h1 class="app-title-h1">Kinopy's Second <span class="app-ver-badge">ver.1.0</span></h1>
         </div>
         <div class="header-actions">
+          <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
           <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
         </div>
       </header>
