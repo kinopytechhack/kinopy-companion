@@ -424,7 +424,8 @@ body {
   transform: scale(0.9);
 }
 
-.header-avatar-img {
+.header-avatar-img,
+.app-logo {
   width: 100%;
   height: 100%;
   object-fit: cover;

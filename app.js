@@ -1348,11 +1348,8 @@ let currentCutOverride = null;
 let lipSyncTimer = null;
 
 function setAvatarCut(cutName, durationMs = 0) {
-  const avatarImgs = [
-    document.getElementById("header-avatar-img"),
-    document.getElementById("mascot-avatar-img")
-  ].filter(Boolean);
-  if (avatarImgs.length === 0) return;
+  const avatarImg = document.getElementById("mascot-avatar-img");
+  if (!avatarImg) return;
 
   const cutMap = {
     normal: "assets/01_normal.png",
@@ -1364,7 +1361,7 @@ function setAvatarCut(cutName, durationMs = 0) {
     wait: "assets/07_wait.png"
   };
   const src = cutMap[cutName] || "assets/01_normal.png";
-  avatarImgs.forEach(img => { img.src = src; });
+  avatarImg.src = src;
 
   if (durationMs > 0) {
     currentCutOverride = cutName;
@@ -1372,7 +1369,7 @@ function setAvatarCut(cutName, durationMs = 0) {
       if (currentCutOverride === cutName) {
         currentCutOverride = null;
         if (!state.isSpeaking) {
-          avatarImgs.forEach(img => { img.src = "assets/01_normal.png"; });
+          avatarImg.src = "assets/01_normal.png";
         }
       }
     }, durationMs);
@@ -1381,10 +1378,7 @@ function setAvatarCut(cutName, durationMs = 0) {
 
 function startLipSync() {
   stopLipSync();
-  const avatarImgs = [
-    document.getElementById("header-avatar-img"),
-    document.getElementById("mascot-avatar-img")
-  ].filter(Boolean);
+  const avatarImg = document.getElementById("mascot-avatar-img");
   let open = false;
   lipSyncTimer = setInterval(() => {
     if (!state.isSpeaking) {
@@ -1392,10 +1386,8 @@ function startLipSync() {
       return;
     }
     open = !open;
-    if (avatarImgs.length > 0 && !currentCutOverride) {
-      avatarImgs.forEach(img => {
-        img.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
-      });
+    if (avatarImg && !currentCutOverride) {
+      avatarImg.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
     }
   }, 180);
 }
@@ -1405,14 +1397,9 @@ function stopLipSync() {
     clearInterval(lipSyncTimer);
     lipSyncTimer = null;
   }
-  const avatarImgs = [
-    document.getElementById("header-avatar-img"),
-    document.getElementById("mascot-avatar-img")
-  ].filter(Boolean);
-  if (avatarImgs.length > 0 && !currentCutOverride) {
-    avatarImgs.forEach(img => {
-      img.src = "assets/01_normal.png";
-    });
+  const avatarImg = document.getElementById("mascot-avatar-img");
+  if (avatarImg && !currentCutOverride) {
+    avatarImg.src = "assets/01_normal.png";
   }
 }
 
