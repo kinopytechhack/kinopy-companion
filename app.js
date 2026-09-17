@@ -473,8 +473,10 @@ function setupEventListeners() {
     unlockAudioContext();
     const mascotSc = document.getElementById("mascot-screen");
     const chatSc = document.getElementById("chat-panel-screen");
+    const headerSoundBtn = document.getElementById("btn-sound-toggle");
     if (mascotSc) mascotSc.classList.add("hidden");
     if (chatSc) chatSc.classList.remove("hidden");
+    if (headerSoundBtn) headerSoundBtn.style.display = "none";
     state.isPanelOpen = true;
     if (window.clearPwaUnreadBadge) window.clearPwaUnreadBadge();
     hidePwaFloatingBubble(true);
@@ -485,8 +487,10 @@ function setupEventListeners() {
     unlockAudioContext();
     const mascotSc = document.getElementById("mascot-screen");
     const chatSc = document.getElementById("chat-panel-screen");
+    const headerSoundBtn = document.getElementById("btn-sound-toggle");
     if (chatSc) chatSc.classList.add("hidden");
     if (mascotSc) mascotSc.classList.remove("hidden");
+    if (headerSoundBtn) headerSoundBtn.style.display = "flex";
     state.isPanelOpen = false;
     showPwaFloatingBubble(lastBotSpeechText);
   };

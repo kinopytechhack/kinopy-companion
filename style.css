@@ -484,6 +484,11 @@ body {
   transform: scale(0.92);
 }
 
+/* チャット画面表示時はヘッダーの音声ボタンを非表示（入力欄上クイックバーにあるため） */
+.app-container:has(#chat-panel-screen:not(.hidden)) #btn-sound-toggle {
+  display: none !important;
+}
+
 /* 2. Kumapy ステータスバー */
 .kumapy-status-bar {
   display: flex;

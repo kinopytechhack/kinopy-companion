@@ -28,8 +28,10 @@
       }
       var m = document.getElementById('mascot-screen');
       var c = document.getElementById('chat-panel-screen');
+      var snd = document.getElementById('btn-sound-toggle');
       if (m) m.classList.add('hidden');
       if (c) c.classList.remove('hidden');
+      if (snd) snd.style.display = 'none';
       if (window.state) window.state.isPanelOpen = true;
       var t = document.getElementById('chat-timeline');
       if (t) t.scrollTop = t.scrollHeight;
@@ -38,8 +40,10 @@
       if (e) e.stopPropagation();
       var m = document.getElementById('mascot-screen');
       var c = document.getElementById('chat-panel-screen');
+      var snd = document.getElementById('btn-sound-toggle');
       if (c) c.classList.add('hidden');
       if (m) m.classList.remove('hidden');
+      if (snd) snd.style.display = 'flex';
       if (window.state) window.state.isPanelOpen = false;
     };
     window.pwaToggleScreen = function(e) {
