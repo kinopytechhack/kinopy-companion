@@ -2968,65 +2968,67 @@ async function fetchGasJsonp(action, paramsObj = {}) {
   });
 }
 
-/**
- * 起動時および定期的にクラウド（GAS）から設定・ログ・メモを完全同期
- */
-async function syncFromCloud() {
+// ログ一意キー正規化ヘルパー（時刻表記揺れや空白による重複追加・再描画バグを防止）
+function normalizeLogKey(timeStr, role, text) {
+  const normRole = (role === "user" || (role && String(role).includes("きのぴぃ"))) ? "user" : "bot";
+  const normText = (text || "").replace(/\s+/g, " ").trim();
+  let normTime = (timeStr || "").trim();
+  const timeMatch = normTime.match(/(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    const hh = String(timeMatch[1]).padStart(2, "0");
+    const mm = timeMatch[2];
+    normTime = `${hh}:${mm}`;
+  }
+  return `${normTime}|${normRole}|${normText}`;
+}
+
+let lastSyncFromCloudTime = 0;
+
+async function syncFromCloud(force = false) {
+  const now = Date.now();
+  if (!force && now - lastSyncFromCloudTime < 20000) {
+    return; // 20秒以内の過剰な連続実行を防止
+  }
+  lastSyncFromCloudTime = now;
+
   if (!state.syncGasUrl) return;
   const todayYmd = getTodayYmd();
-  console.log("☁️ Syncing with GAS cloud via JSONP...", state.syncGasUrl);
 
-  // 1. クラウド設定の取得 (APIキー・声の設定等がクラウド側にあれば自動適用)
+  // 1. 設定の同期取得（クラウドが新しい場合のみ上書き）
   try {
     const data = await fetchGasJsonp("getSettings");
     if (data && data.success && data.settings) {
       const s = data.settings;
-      let needUpdateUI = false;
-
-      // Gemini API Key
-      if (s.geminiApiKey && s.geminiApiKey !== state.geminiApiKey) {
-        state.geminiApiKey = s.geminiApiKey;
-        localStorage.setItem("gemini_api_key", s.geminiApiKey);
-        needUpdateUI = true;
-      }
-      if (typeof s.geminiEnabled === "boolean" && s.geminiEnabled !== state.geminiEnabled) {
-        state.geminiEnabled = s.geminiEnabled;
-        localStorage.setItem("gemini_enabled", s.geminiEnabled.toString());
-        needUpdateUI = true;
-      }
-
-      // 声の設定同期 (VOICEVOX スピーカー / 高さ / 速度 / ON/OFF)
-      if (s.voiceSpeaker && s.voiceSpeaker !== state.voiceSpeaker) {
-        state.voiceSpeaker = s.voiceSpeaker;
-        localStorage.setItem("voice_speaker", s.voiceSpeaker);
-        needUpdateUI = true;
-      }
-      if (typeof s.voicePitch === "number" && s.voicePitch !== state.voicePitch) {
-        state.voicePitch = s.voicePitch;
-        localStorage.setItem("voice_pitch", s.voicePitch.toString());
-        needUpdateUI = true;
-      }
-      if (typeof s.voiceRate === "number" && s.voiceRate !== state.voiceRate) {
-        state.voiceRate = s.voiceRate;
-        localStorage.setItem("voice_rate", s.voiceRate.toString());
-        needUpdateUI = true;
-      }
-      if (typeof s.voiceEnabled === "boolean" && s.voiceEnabled !== state.voiceEnabled) {
-        state.voiceEnabled = s.voiceEnabled;
-        localStorage.setItem("voice_enabled", s.voiceEnabled.toString());
-        needUpdateUI = true;
-      }
-
-      // Kumapy
-      if (s.kumapyUrl && s.kumapyUrl !== state.kumapyUrl) {
-        state.kumapyUrl = s.kumapyUrl;
-        localStorage.setItem("kumapy_url", s.kumapyUrl);
-        needUpdateUI = true;
-      }
-
-      if (needUpdateUI) {
+      if (typeof s === "object") {
+        if (s.geminiApiKey !== undefined && s.geminiApiKey !== state.geminiApiKey) {
+          state.geminiApiKey = s.geminiApiKey;
+          localStorage.setItem("gemini_api_key", s.geminiApiKey);
+        }
+        if (s.geminiEnabled !== undefined && s.geminiEnabled !== state.geminiEnabled) {
+          state.geminiEnabled = Boolean(s.geminiEnabled);
+          localStorage.setItem("gemini_enabled", state.geminiEnabled);
+        }
+        if (s.voiceEnabled !== undefined && s.voiceEnabled !== state.voiceEnabled) {
+          state.voiceEnabled = Boolean(s.voiceEnabled);
+          localStorage.setItem("voice_enabled", state.voiceEnabled);
+        }
+        if (s.voiceSpeaker !== undefined && s.voiceSpeaker !== state.voiceSpeaker) {
+          state.voiceSpeaker = s.voiceSpeaker;
+          localStorage.setItem("voice_speaker", s.voiceSpeaker);
+        }
+        if (s.voicePitch !== undefined && s.voicePitch !== state.voicePitch) {
+          state.voicePitch = parseFloat(s.voicePitch);
+          localStorage.setItem("voice_pitch", state.voicePitch);
+        }
+        if (s.voiceRate !== undefined && s.voiceRate !== state.voiceRate) {
+          state.voiceRate = parseFloat(s.voiceRate);
+          localStorage.setItem("voice_rate", state.voiceRate);
+        }
+        if (s.kumapyUrl !== undefined && s.kumapyUrl !== state.kumapyUrl) {
+          state.kumapyUrl = s.kumapyUrl;
+          localStorage.setItem("kumapy_url", s.kumapyUrl);
+        }
         loadSettingsToUI();
-        updateBadgeState();
       }
     }
   } catch (err) {
@@ -3057,7 +3059,7 @@ async function syncFromCloud() {
         const role = msg.role === "user" ? "user" : "bot";
         const timeStr = msg.time || "";
         const text = msg.text || "";
-        const key = `${timeStr}|${role}|${text.trim()}`;
+        const key = normalizeLogKey(timeStr, role, text);
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           mergedLogs.push({ role, text, time: timeStr });
@@ -3069,7 +3071,7 @@ async function syncFromCloud() {
         const role = msg.role === "user" ? "user" : "bot";
         const timeStr = msg.time || "";
         const text = msg.text || "";
-        const key = `${timeStr}|${role}|${text.trim()}`;
+        const key = normalizeLogKey(timeStr, role, text);
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           mergedLogs.push({ role, text, time: timeStr });
@@ -3087,9 +3089,8 @@ async function syncFromCloud() {
           const timeEl = row.querySelector(".bubble-time");
           const isUser = row.classList.contains("user-row") || row.classList.contains("user");
           if (textEl) {
-            const t = (textEl.textContent || "").trim();
-            const tm = timeEl ? (timeEl.textContent || "").trim() : "";
-            renderedKeys.add(`${tm}|${isUser ? "user" : "bot"}|${t}`);
+            const key = normalizeLogKey(timeEl ? timeEl.textContent : "", isUser ? "user" : "bot", textEl.textContent);
+            renderedKeys.add(key);
           }
         });
 
@@ -3097,7 +3098,7 @@ async function syncFromCloud() {
         let newAdded = false;
         let lastBotMsg = null;
         mergedLogs.forEach(msg => {
-          const key = `${msg.time || ""}|${msg.role}|${(msg.text || "").trim()}`;
+          const key = normalizeLogKey(msg.time, msg.role, msg.text);
           if (!renderedKeys.has(key)) {
             renderedKeys.add(key);
             elements.chatTimeline.appendChild(createMessageBubbleElement(msg.role, msg.text, msg.time));
