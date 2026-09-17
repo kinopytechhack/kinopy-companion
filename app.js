@@ -2499,7 +2499,11 @@ async function fetchKumapyTasks() {
       for (let i = 1; i < rows.length; i++) {
         const cols = rows[i];
         if (cols.length < 11) continue;
-        const taskYmd = cols[1];
+        let taskYmd = (cols[1] || "").trim().replace(/\//g, "-");
+        const ymdParts = taskYmd.split("-");
+        if (ymdParts.length === 3) {
+          taskYmd = `${ymdParts[0]}-${ymdParts[1].padStart(2, "0")}-${ymdParts[2].padStart(2, "0")}`;
+        }
         if (taskYmd === targetDate) {
           list.push({
             taskId: cols[0],
@@ -2583,13 +2587,20 @@ async function fetchKumapyTasks() {
         elements.kumapyText.textContent = text;
         elements.kumapyStatusBar.title = title;
         updatePwaCharacterTaskBar("📋", text, title);
-      } else {
+      } else if (tasks.length > 0) {
         const text = "本日のタスク完了！";
         const title = "すべての予定・タスクが完了しています";
         if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "🎉");
         elements.kumapyText.textContent = text;
         elements.kumapyStatusBar.title = title;
         updatePwaCharacterTaskBar("🎉", text, title);
+      } else {
+        const text = "本日の予定・タスクはありません";
+        const title = "本日予定されているタスクはありません";
+        if (elements.kumapyIcon) renderPwaTaskIcon(elements.kumapyIcon, "📅");
+        elements.kumapyText.textContent = text;
+        elements.kumapyStatusBar.title = title;
+        updatePwaCharacterTaskBar("📅", text, title);
       }
     }
   } catch (err) {
