@@ -30,12 +30,18 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはきのぴぃ専属のAIセコンド�
 【出力制約】
 - 結論から1〜2文（60〜80文字程度）。思考整理・要約時のみスッキリ3〜4行の箇条書きOK。説教や長文は不要。`;
 
-// セキュリティ: URL・トークン・シートIDはコードにハードコードしない。
-// 設定モーダルから入力 → localStorage に保存する方式に統一。
-// DEFAULT_SYNC_GAS_URL はコードから撤去済み。
+const DEFAULT_CONFIG = {
+  sheetId: '1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU',
+  sheetUrl: 'https://docs.google.com/spreadsheets/d/1o8uRj0hzSBLGNelHzW3H3FDPHIKdOH3C9Zj8eg2wDiU/edit?usp=sharing',
+  webAppUrl: 'https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec',
+  token: '62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10',
+  kumapyWebAppUrl: 'https://script.google.com/a/macros/kinopy-techhack.com/s/AKfycbzGxGXxODu8nscgdSdLZKR8XA3-6ahshHWtIl3JlQZkG4CScnn4yzazYteE3S7B42Sk/exec?key=62047b20bdfc7b24b50c497cb50ac098f3a9371e1e013e10',
+  metricsSheetId: '1KaMsdvgVBvPku45Ut65VApzm5Mk_ggb8ZMNGsU84iHE',
+  syncGasUrl: 'https://script.google.com/macros/s/AKfycbyNbQePEOJjQmWqaAghvCs94mEraxRCEw0uPcPuJaHkw8fwbTZ7Gh9DWiTo8NLvC-w3PQ/exec'
+};
 
 const METRICS_CONFIG = {
-  // sheetId は localStorage の metrics_sheet_id キーから取得（ここでは参照しない）
+  sheetId: DEFAULT_CONFIG.metricsSheetId,
   weatherSheetName: 'Weather',
   sleepSheetName: 'Sleep'
 };
@@ -43,10 +49,10 @@ const METRICS_CONFIG = {
 const state = {
   geminiApiKey: localStorage.getItem("gemini_api_key") || "",
   geminiEnabled: localStorage.getItem("gemini_enabled") !== "false",
-  kumapyUrl: localStorage.getItem("kumapy_url") || "",           // Kumapy スプレッドシートID/URL
-  kumapyWebAppUrl: localStorage.getItem("kumapy_webapp_url") || "", // Kumapy WebApp URL（トークン付き）
-  metricsSheetId: localStorage.getItem("metrics_sheet_id") || "", // 天気・睡眠シートID
-  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || "", // クラウド同期用GAS URL
+  kumapyUrl: localStorage.getItem("kumapy_url") || DEFAULT_CONFIG.sheetId,
+  kumapyWebAppUrl: localStorage.getItem("kumapy_webapp_url") || DEFAULT_CONFIG.kumapyWebAppUrl,
+  metricsSheetId: localStorage.getItem("metrics_sheet_id") || DEFAULT_CONFIG.metricsSheetId,
+  syncGasUrl: localStorage.getItem("companion_sync_gas_url") || DEFAULT_CONFIG.syncGasUrl,
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
@@ -426,10 +432,10 @@ function updateTokenDisplay() {
 function loadSettingsToUI() {
   state.geminiApiKey = localStorage.getItem("gemini_api_key") || "";
   state.geminiEnabled = localStorage.getItem("gemini_enabled") !== "false";
-  state.kumapyUrl = localStorage.getItem("kumapy_url") || "";
-  state.kumapyWebAppUrl = localStorage.getItem("kumapy_webapp_url") || "";
-  state.metricsSheetId = localStorage.getItem("metrics_sheet_id") || "";
-  state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || "";
+  state.kumapyUrl = localStorage.getItem("kumapy_url") || DEFAULT_CONFIG.sheetId;
+  state.kumapyWebAppUrl = localStorage.getItem("kumapy_webapp_url") || DEFAULT_CONFIG.kumapyWebAppUrl;
+  state.metricsSheetId = localStorage.getItem("metrics_sheet_id") || DEFAULT_CONFIG.metricsSheetId;
+  state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || DEFAULT_CONFIG.syncGasUrl;
   state.voiceEnabled = localStorage.getItem("voice_enabled") !== "false";
   state.voiceSpeaker = localStorage.getItem("voice_speaker") || "11";
   state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
