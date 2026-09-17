@@ -9,16 +9,16 @@
   <title>Kinopy's Second</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260918-0700">
+  <link rel="manifest" href="manifest.json?v=20260918-0708">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Kinopy's Second">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-0700">
-  <link rel="icon" href="assets/icon.png?v=20260918-0700">
-  <link rel="shortcut icon" href="favicon.ico?v=20260918-0700">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-0708">
+  <link rel="icon" href="assets/icon.png?v=20260918-0708">
+  <link rel="shortcut icon" href="favicon.ico?v=20260918-0708">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260918-0700">
+  <link rel="stylesheet" href="style.css?v=20260918-0708">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -68,6 +68,50 @@
         window.pwaOpenChat(e);
       }
     };
+    window.pwaOpenSettings = function(e) {
+      if (e) e.stopPropagation();
+      var p = document.getElementById('settings-panel');
+      if (p) p.classList.remove('hidden');
+    };
+    window.pwaCloseSettings = function(e) {
+      if (e) e.stopPropagation();
+      var p = document.getElementById('settings-panel');
+      if (p) p.classList.add('hidden');
+    };
+    window.pwaToggleSound = function(e) {
+      if (e) e.stopPropagation();
+      if (window.toggleSound) {
+        window.toggleSound(e);
+      } else {
+        var enabled = localStorage.getItem('voice_enabled') === 'true';
+        localStorage.setItem('voice_enabled', (!enabled).toString());
+        var btn = document.getElementById('btn-sound-toggle');
+        if (btn) btn.textContent = !enabled ? '🔊' : '🔇';
+      }
+    };
+    window.pwaToggleAiMode = function(e) {
+      if (e) e.stopPropagation();
+      if (window.toggleAiMode) {
+        window.toggleAiMode(e);
+      } else {
+        var enabled = localStorage.getItem('gemini_enabled') !== 'false';
+        localStorage.setItem('gemini_enabled', (!enabled).toString());
+        var badge = document.getElementById('ai-mode-badge');
+        if (badge) {
+          badge.textContent = !enabled ? '✨ Gemini 連動' : '⚡ 内蔵モード';
+          badge.className = !enabled ? 'ai-mode-badge gemini-active' : 'ai-mode-badge';
+        }
+      }
+    };
+    window.pwaOpenKumapy = function(e) {
+      if (e) e.stopPropagation();
+      if (window.openKumapyInBrowser) {
+        window.openKumapyInBrowser();
+      } else {
+        var url = localStorage.getItem('kumapy_webapp_url') || '';
+        if (url) window.open(url, '_blank');
+      }
+    };
   </script>
 </head>
 <body>
@@ -82,9 +126,9 @@
         <h1 class="app-title-h1">Kinopy's Second <span class="app-ver-badge">ver.1.0</span></h1>
       </div>
       <div class="header-actions">
-        <span id="ai-mode-badge" class="ai-mode-badge" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
-        <button id="btn-sound-toggle" class="mini-icon-btn sound-toggle-btn" title="音声読み上げオン/オフ">🔊</button>
-        <button id="btn-settings-toggle" class="mini-icon-btn" title="設定">⚙️</button>
+        <span id="ai-mode-badge" class="ai-mode-badge" onclick="window.pwaToggleAiMode(event)" title="クリックでGemini連動 ON/OFF 切替">⚡ 内蔵モード</span>
+        <button id="btn-sound-toggle" class="mini-icon-btn sound-toggle-btn" onclick="window.pwaToggleSound(event)" title="音声読み上げオン/オフ">🔊</button>
+        <button id="btn-settings-toggle" class="mini-icon-btn" onclick="window.pwaOpenSettings(event)" title="設定">⚙️</button>
       </div>
     </header>
 
@@ -105,7 +149,7 @@
         </div>
 
         <!-- 下部横長1行の予定・タスクステータス枠 -->
-        <a href="#" class="mascot-task-bar" id="mascot-task-bar" title="タップでKumapyを開く" style="text-decoration:none; color:inherit;" onclick="return false;">
+        <a href="#" class="mascot-task-bar" id="mascot-task-bar" title="タップでKumapyを開く" style="text-decoration:none; color:inherit;" onclick="window.pwaOpenKumapy(event)">
           <span class="char-task-icon" id="pwa-char-task-icon">🎯</span>
           <span class="char-task-text" id="pwa-char-task-text">Kumapyを読み込み中...</span>
         </a>
@@ -328,6 +372,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260918-0700"></script>
+  <script src="app.js?v=20260918-0708"></script>
 </body>
 </html>

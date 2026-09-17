@@ -212,21 +212,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  safeRun("initTokenUsage", initTokenUsage);
+  // 1. イベントリスナーとUI初期化を最優先実行（ボタン反応の遅延を完全排除）
+  safeRun("setupEventListeners", setupEventListeners);
   safeRun("loadSettingsToUI", loadSettingsToUI);
   safeRun("updateBadgeState", updateBadgeState);
+  safeRun("initTokenUsage", initTokenUsage);
+
+  // 2. タイムライン・メモ描画
   safeRun("initChatTimeline", initChatTimeline);
   safeRun("renderMemos", renderMemos);
-  safeRun("setupEventListeners", setupEventListeners);
-  safeRun("fetchKumapyTasks", fetchKumapyTasks);
   safeRun("initPullToRefresh", initPullToRefresh);
   
+  // 3. ネットワーク同期を非同期で開始（メインスレッドをブロックしない）
+  setTimeout(() => {
+    safeRun("fetchKumapyTasks", fetchKumapyTasks);
+    safeRun("syncFromCloud", syncFromCloud);
+  }, 30);
+
   // 定期バックグラウンド自動同期
   setInterval(fetchKumapyTasks, 30 * 1000);
   setInterval(syncFromCloud, 45 * 1000);
-  
-  // クラウド同期初回実行
-  syncFromCloud();
 
   // PWA/ブラウザ復帰時（画面復帰・アプリ切り替え・タブフォーカス）の自動同期
   document.addEventListener("visibilitychange", () => {
@@ -854,6 +859,11 @@ function setupEventListeners() {
       stopVoice();
     }
   };
+
+  window.openKumapyInBrowser = openKumapyInBrowser;
+  window.toggleSound = toggleSoundState;
+  window.openSettings = openSettingsModal;
+  window.closeSettings = closeSettingsModal;
 
   [elements.btnSoundToggle, elements.btnSoundToggleBottom, elements.btnMascotSoundToggle].filter(Boolean).forEach(btn => {
     btn.addEventListener("click", toggleSoundState);
