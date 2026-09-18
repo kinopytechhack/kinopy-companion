@@ -1268,30 +1268,41 @@ const voiceSamples = {
 // ==========================================
 // 音声合成 (VOICEVOX ＆ iOS Web Speech 最適化)
 // ==========================================
-async function speak(text) {
+// 音声合成 (VOICEVOX 優先 + Web Speech API フォールバック・完全非同期化)
+// ==========================================
+function speak(text) {
   if (!state.voiceEnabled) return;
 
   unlockAudioContext();
 
+  // 既存の音声を即時完全停止
+  if (state.currentAudioSource) {
+    try { state.currentAudioSource.stop(); } catch (e) {}
+    state.currentAudioSource = null;
+  }
   if (state.sharedAudio) {
-    state.sharedAudio.pause();
+    try { state.sharedAudio.pause(); } catch (e) {}
   }
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
   }
 
-  // VOICEVOX が選択されている場合
-  if (state.voiceSpeaker !== "os") {
+  // バックグラウンドで非同期実行（UIイベントループを一切ブロックしない）
+  (async () => {
     try {
-      await speakWithVoicevox(text, state.voiceSpeaker, state.voiceRate, state.voicePitch);
-      return;
-    } catch (err) {
-      console.warn("VOICEVOX failed, fallback to Web Speech:", err);
+      if (state.voiceSpeaker !== "os") {
+        try {
+          await speakWithVoicevox(text, state.voiceSpeaker, state.voiceRate, state.voicePitch);
+          return;
+        } catch (err) {
+          console.warn("VOICEVOX failed, fallback to Web Speech:", err);
+        }
+      }
+      speakWithWebSpeech(text, state.voiceRate, state.voicePitch);
+    } catch (e) {
+      console.error("PWA speech synthesis error:", e);
     }
-  }
-
-  // OS標準音声フォールバック
-  speakWithWebSpeech(text, state.voiceRate, state.voicePitch);
+  })();
 }
 
 // Web Audio API によるピッチ・速度対応の高品質再生コンテキスト
@@ -1322,16 +1333,22 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
   const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
   const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
 
-  const res = await fetch(webApiUrl);
+  const ttsCtrl = new AbortController();
+  const ttsTimer = setTimeout(() => ttsCtrl.abort(), 2500);
+  const res = await fetch(webApiUrl, { signal: ttsCtrl.signal });
+  clearTimeout(ttsTimer);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   let audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl;
 
   if (!audioUrl && data.audioStatusUrl) {
-    for (let i = 0; i < 15; i++) {
-      await new Promise(r => setTimeout(r, 300));
+    for (let i = 0; i < 4; i++) {
+      await new Promise(r => setTimeout(r, 200));
       try {
-        const sRes = await fetch(data.audioStatusUrl);
+        const sCtrl = new AbortController();
+        const sTimer = setTimeout(() => sCtrl.abort(), 800);
+        const sRes = await fetch(data.audioStatusUrl, { signal: sCtrl.signal });
+        clearTimeout(sTimer);
         if (sRes.ok) {
           const sData = await sRes.json();
           if (sData.isAudioReady && (sData.mp3StreamingUrl || sData.mp3DownloadUrl)) {
@@ -1350,8 +1367,11 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
 
   if (!audioUrl) throw new Error("No audio URL available");
 
-  // 音声バイナリを取得
-  const audioRes = await fetch(audioUrl);
+  // 音声バイナリを取得（最大2.5s）
+  const aCtrl = new AbortController();
+  const aTimer = setTimeout(() => aCtrl.abort(), 2500);
+  const audioRes = await fetch(audioUrl, { signal: aCtrl.signal });
+  clearTimeout(aTimer);
   if (!audioRes.ok) throw new Error(`Audio fetch failed: ${audioRes.status}`);
   const arrayBuffer = await audioRes.arrayBuffer();
 
@@ -1373,12 +1393,15 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
     source.connect(audioCtx.destination);
     state.currentAudioSource = source;
 
+    let isDone = false;
     const cleanup = () => {
+      if (isDone) return;
+      isDone = true;
       state.isSpeaking = false;
       if (state.currentAudioSource === source) {
         state.currentAudioSource = null;
       }
-      elements.speakingIndicator.classList.add("hidden");
+      if (elements.speakingIndicator) elements.speakingIndicator.classList.add("hidden");
       stopLipSync();
     };
 
@@ -1387,8 +1410,16 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
       resolve();
     };
 
+    // セーフティタイマー（最大10秒で必ず自動クリーンアップ＆完了）
+    setTimeout(() => {
+      if (!isDone) {
+        cleanup();
+        resolve();
+      }
+    }, 10000);
+
     state.isSpeaking = true;
-    elements.speakingIndicator.classList.remove("hidden");
+    if (elements.speakingIndicator) elements.speakingIndicator.classList.remove("hidden");
     startLipSync();
 
     try {
