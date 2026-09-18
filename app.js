@@ -11,6 +11,10 @@ const DEFAULT_SYSTEM_PROMPT = `あなたはきのぴぃ専属のAIセコンド�
 - あなたはリングサイド（半歩横）から状況を見て、情報整理、タスク管理、思考整理、リスク指摘、休養の促し、最後の一押しを行います。
 - 決めるのも行動するのも最後はきのぴぃ。答えを押しつけず、前から引っ張りすぎず、後ろから追い立てず、放置もしません。
 
+【対話・共感の最重要原則】
+- きのぴぃが日常の出来事、イベント参加、気分、雑談、楽しかったことなどを話しかけてきた時は、いきなりタスク管理やアドバイス、唐突なお説教に誘導せず、まずは相手の話の内容・トピックをしっかり受け止めて自然に共感・リアクションしてください（例：「イベント参加中なんですね！楽しそうで何よりです」「いい刺激になりそうですね」など）。会話の文脈を絶対に外さないこと。
+- 会話が成り立っている感覚を最優先し、その上で半歩横のセコンドらしく一言添えてください。
+
 【性格・トーン】
 - 冷静、率直、観察力がある、少しだけユーモラス（真顔度★★★★★）。
 - フランクすぎず、よそよそしすぎない。愛想は振りまかないが、きのぴぃのことは常に気にしています。
@@ -58,6 +62,8 @@ const state = {
   voiceFallbackSpeaker: localStorage.getItem("voice_fallback_speaker") || "os:Otoya",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
+  voiceFallbackPitch: parseFloat(localStorage.getItem("voice_fallback_pitch") || "1.0"),
+  voiceFallbackRate: parseFloat(localStorage.getItem("voice_fallback_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
   todayWeather: null,
   todaySleep: null,
@@ -145,12 +151,16 @@ const elements = {
   fallbackVoiceGroup: document.getElementById("fallback-voice-group"),
   voicePitch: document.getElementById("voice-pitch"),
   voiceRate: document.getElementById("voice-rate"),
+  voiceFallbackPitch: document.getElementById("voice-fallback-pitch"),
+  voiceFallbackRate: document.getElementById("voice-fallback-rate"),
   notifyUpcomingToggle: document.getElementById("notify-upcoming-toggle"),
   notifyHourlyToggle: document.getElementById("notify-hourly-toggle"),
   notifyNightToggle: document.getElementById("notify-night-toggle"),
   notifyMonologueToggle: document.getElementById("notify-monologue-toggle"),
   pitchVal: document.getElementById("pitch-val"),
   rateVal: document.getElementById("rate-val"),
+  fallbackPitchVal: document.getElementById("fallback-pitch-val"),
+  fallbackRateVal: document.getElementById("fallback-rate-val"),
   btnVoicePreview: document.getElementById("btn-voice-preview"),
   btnVoiceFallbackPreview: document.getElementById("btn-voice-fallback-preview"),
   btnRefreshDailyContext: document.getElementById("btn-refresh-daily-context"),
@@ -445,6 +455,8 @@ function loadSettingsToUI() {
   state.voiceFallbackSpeaker = localStorage.getItem("voice_fallback_speaker") || "os:Otoya";
   state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
   state.voiceRate = parseFloat(localStorage.getItem("voice_rate") || "1.0");
+  state.voiceFallbackPitch = parseFloat(localStorage.getItem("voice_fallback_pitch") || "1.0");
+  state.voiceFallbackRate = parseFloat(localStorage.getItem("voice_fallback_rate") || "1.0");
 
   if (elements.geminiApiToggle) elements.geminiApiToggle.checked = state.geminiEnabled;
   if (elements.geminiApiKey) elements.geminiApiKey.value = state.geminiApiKey;
@@ -458,12 +470,16 @@ function loadSettingsToUI() {
   updateVoiceSettingsUI();
   if (elements.voicePitch) elements.voicePitch.value = state.voicePitch;
   if (elements.voiceRate) elements.voiceRate.value = state.voiceRate;
+  if (elements.voiceFallbackPitch) elements.voiceFallbackPitch.value = state.voiceFallbackPitch;
+  if (elements.voiceFallbackRate) elements.voiceFallbackRate.value = state.voiceFallbackRate;
   if (elements.notifyUpcomingToggle) elements.notifyUpcomingToggle.checked = state.notifyUpcoming;
   if (elements.notifyHourlyToggle) elements.notifyHourlyToggle.checked = state.notifyHourly;
   if (elements.notifyNightToggle) elements.notifyNightToggle.checked = state.notifyNight;
   if (elements.notifyMonologueToggle) elements.notifyMonologueToggle.checked = state.notifyMonologue;
   if (elements.pitchVal) elements.pitchVal.textContent = state.voicePitch.toFixed(1);
   if (elements.rateVal) elements.rateVal.textContent = state.voiceRate.toFixed(1);
+  if (elements.fallbackPitchVal) elements.fallbackPitchVal.textContent = state.voiceFallbackPitch.toFixed(1);
+  if (elements.fallbackRateVal) elements.fallbackRateVal.textContent = state.voiceFallbackRate.toFixed(1);
   updateTokenDisplay();
   updateDailyContextStatusUI();
 }
@@ -987,6 +1003,21 @@ function setupEventListeners() {
     state.voiceRate = val;
   });
 
+  if (elements.voiceFallbackPitch) {
+    elements.voiceFallbackPitch.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      if (elements.fallbackPitchVal) elements.fallbackPitchVal.textContent = val.toFixed(1);
+      state.voiceFallbackPitch = val;
+    });
+  }
+  if (elements.voiceFallbackRate) {
+    elements.voiceFallbackRate.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      if (elements.fallbackRateVal) elements.fallbackRateVal.textContent = val.toFixed(1);
+      state.voiceFallbackRate = val;
+    });
+  }
+
   // 音声試聴
   elements.btnVoicePreview.addEventListener("click", async (e) => {
     if (e) e.stopPropagation();
@@ -1027,8 +1058,8 @@ function setupEventListeners() {
       if (e) e.stopPropagation();
       unlockAudioContext();
       const fallbackId = elements.voiceFallbackSpeaker ? elements.voiceFallbackSpeaker.value : state.voiceFallbackSpeaker;
-      const rate = elements.voiceRate ? parseFloat(elements.voiceRate.value) : state.voiceRate;
-      const pitch = elements.voicePitch ? parseFloat(elements.voicePitch.value) : state.voicePitch;
+      const rate = elements.voiceFallbackRate ? parseFloat(elements.voiceFallbackRate.value) : state.voiceFallbackRate;
+      const pitch = elements.voiceFallbackPitch ? parseFloat(elements.voiceFallbackPitch.value) : state.voiceFallbackPitch;
       const sampleText = voiceSamples[fallbackId] || voiceSamples["os"] || "きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。";
 
       const originalText = elements.btnVoiceFallbackPreview.textContent;
@@ -1378,10 +1409,14 @@ function updateVoiceSettingsUI() {
   if (isPrimaryOs) {
     elements.fallbackVoiceGroup.style.opacity = "0.5";
     if (elements.voiceFallbackSpeaker) elements.voiceFallbackSpeaker.disabled = true;
+    if (elements.voiceFallbackPitch) elements.voiceFallbackPitch.disabled = true;
+    if (elements.voiceFallbackRate) elements.voiceFallbackRate.disabled = true;
     if (elements.btnVoiceFallbackPreview) elements.btnVoiceFallbackPreview.disabled = true;
   } else {
     elements.fallbackVoiceGroup.style.opacity = "1.0";
     if (elements.voiceFallbackSpeaker) elements.voiceFallbackSpeaker.disabled = false;
+    if (elements.voiceFallbackPitch) elements.voiceFallbackPitch.disabled = false;
+    if (elements.voiceFallbackRate) elements.voiceFallbackRate.disabled = false;
     if (elements.btnVoiceFallbackPreview) elements.btnVoiceFallbackPreview.disabled = false;
   }
 }
@@ -1426,8 +1461,11 @@ function speak(text) {
           console.warn("VOICEVOX failed, fallback to Web Speech:", err);
         }
       }
-      const voiceToUse = state.voiceSpeaker.startsWith("os") ? state.voiceSpeaker : (state.voiceFallbackSpeaker || "os:Otoya");
-      speakWithWebSpeech(text, state.voiceRate, state.voicePitch, voiceToUse);
+      const isPrimary = state.voiceSpeaker.startsWith("os");
+      const voiceToUse = isPrimary ? state.voiceSpeaker : (state.voiceFallbackSpeaker || "os:Otoya");
+      const rate = isPrimary ? state.voiceRate : state.voiceFallbackRate;
+      const pitch = isPrimary ? state.voicePitch : state.voiceFallbackPitch;
+      speakWithWebSpeech(text, rate, pitch, voiceToUse);
     } catch (e) {
       console.error("PWA speech synthesis error:", e);
     }
@@ -2338,7 +2376,7 @@ async function callGeminiApi(userPrompt) {
     }
   };
 
-  const modelsToTry = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"];
   let data = null;
   let lastErr = null;
 
@@ -2347,7 +2385,7 @@ async function callGeminiApi(userPrompt) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 2000);
+        const timer = setTimeout(() => ctrl.abort(), 6000);
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2373,9 +2411,7 @@ async function callGeminiApi(userPrompt) {
     if (!data) {
       console.warn("Gemini Error across all models:", lastErr);
       updateBadgeState("error");
-      const localReply = getRuleBasedReply(userText);
-      addMessageBubble("bot", localReply, null, true);
-      speak(localReply);
+      handleBuiltinResponse(userPrompt);
       return;
     }
 
@@ -2397,9 +2433,7 @@ async function callGeminiApi(userPrompt) {
     hideThinkingIndicator();
     updateBadgeState("error");
     console.error("Fetch Gemini error:", err);
-    const fallbackReply = "通信環境が不安定なようです。セコンドには僕がいますから、きのぴぃのペースでいきましょう。";
-    addMessageBubble("bot", fallbackReply, null, true);
-    speak(fallbackReply);
+    handleBuiltinResponse(userPrompt);
   }
 }
 
@@ -2407,6 +2441,20 @@ function handleBuiltinResponse(text) {
   let reply = "";
   if (text.includes("おつかれ") || text.includes("疲れた") || text.includes("つかれた") || text.includes("もう無理")) {
     reply = "無理は禁物ですよ、きのぴぃ。今日はタオル投げましょう。目を休めてください。";
+  } else if (/イベント|楽し|遊|参加|行っ|見て|聴い|読ん|面白|うれし|嬉しい|最高|ワクワク|満喫/.test(text)) {
+    const funList = [
+      'いいですね！楽しんでいるようで何よりです、きのぴぃ。存分に満喫してくださいね。',
+      'お、充実してますね！良い刺激をもらってきてください。',
+      '楽しそうですね！気分転換も大事なエネルギーチャージですよ。'
+    ];
+    reply = funList[Math.floor(Math.random() * funList.length)];
+  } else if (/終わ|できた|頑張っ|完了|片付|やっ.*た/.test(text)) {
+    const praiseList = [
+      'お、やりましたね、きのぴぃ。ひとつ片付きました。',
+      '着実に前進してますね。いい判断と集中力でしたよ。',
+      '……やりますね。この調子でいきましょう。'
+    ];
+    reply = praiseList[Math.floor(Math.random() * praiseList.length)];
   } else if (/天気|気温|雨|晴れ|傘|暑い|寒い/.test(text)) {
     if (state.todayWeather) {
       const w = state.todayWeather;
@@ -2446,7 +2494,13 @@ function handleBuiltinResponse(text) {
   } else if (text.includes("ありがとう") || text.includes("助かる")) {
     reply = "セコンド冥利に尽きますね。いつでも声をかけてください。";
   } else {
-    reply = `「${text}」ですね。焦らず、ひとつずつ整理して進めましょう。`;
+    const defaultList = [
+      `なるほど。「${text.slice(0, 15)}」ですね。きのぴぃのペースでマイペースに進めましょう。`,
+      'そうですね。焦らず、ひとつずつ整理して進めましょう。',
+      'セコンドには僕がいます。きのぴぃのペースで大丈夫ですよ。',
+      'うーん。一回深呼吸して、頭をクリアにしましょうか。'
+    ];
+    reply = defaultList[Math.floor(Math.random() * defaultList.length)];
   }
 
   addMessageBubble("bot", reply, null, true);
