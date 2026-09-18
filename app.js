@@ -1979,7 +1979,64 @@ function createMessageBubbleElement(role, text, timeStr) {
   return rowEl;
 }
 
+let currentPwaThinkingRowEl = null;
+
+function showThinkingIndicator(label = "考え中...") {
+  hideThinkingIndicator();
+  setAvatarCut("wait", 10000); // 思考カット（07_wait.png）に即時切り替え
+
+  if (elements.aiStatusIndicator) {
+    elements.aiStatusIndicator.textContent = `✨ ${label}`;
+    elements.aiStatusIndicator.classList.remove("hidden");
+  }
+
+  if (elements.chatTimeline) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "typing-indicator-row";
+    rowEl.id = "pwa-live-typing-indicator";
+
+    const avatarEl = document.createElement("img");
+    avatarEl.className = "chat-avatar bot-avatar";
+    avatarEl.src = "assets/avatar_face_flipped.png";
+    avatarEl.alt = "Matt";
+
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "typing-bubble";
+
+    const textEl = document.createElement("div");
+    textEl.className = "typing-text";
+    textEl.innerHTML = `<span>${label}</span><span class="typing-dots"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></span>`;
+
+    bubbleEl.appendChild(textEl);
+    rowEl.appendChild(avatarEl);
+    rowEl.appendChild(bubbleEl);
+
+    elements.chatTimeline.appendChild(rowEl);
+    scrollToBottom();
+    currentPwaThinkingRowEl = rowEl;
+  }
+
+  if (!state.isPanelOpen) {
+    showPwaFloatingBubble(`💭 ${label}`);
+  }
+}
+
+function hideThinkingIndicator() {
+  if (currentPwaThinkingRowEl && currentPwaThinkingRowEl.parentNode) {
+    currentPwaThinkingRowEl.parentNode.removeChild(currentPwaThinkingRowEl);
+  }
+  currentPwaThinkingRowEl = null;
+  const existing = document.getElementById("pwa-live-typing-indicator");
+  if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing);
+  }
+  if (elements.aiStatusIndicator) {
+    elements.aiStatusIndicator.classList.add("hidden");
+  }
+}
+
 function addMessageBubble(role, text, timeStr, shouldSave = true) {
+  hideThinkingIndicator();
   if (!timeStr) {
     timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
@@ -2037,7 +2094,6 @@ async function handleUserSend() {
     state.waitingForMemo = false;
     elements.userInput.placeholder = state.isCoachingMode ? "💡 モヤモヤしていることを話してみて (⌘+Enterで送信)..." : "メッセージを入力 (⌘+Enterで送信)...";
     addMessageBubble("user", text, null, true);
-    await new Promise(r => setTimeout(r, 200));
     addMemo(text);
     speak("メモを保存しました！");
     return;
@@ -2059,6 +2115,7 @@ async function handleUserSend() {
   }
 
   if (state.geminiEnabled && state.geminiApiKey) {
+    showThinkingIndicator("Mattが思考中...");
     await callGeminiApi(text);
   } else {
     handleBuiltinResponse(text);
@@ -2066,9 +2123,6 @@ async function handleUserSend() {
 }
 
 async function callGeminiApi(userPrompt) {
-  elements.aiStatusIndicator.textContent = "✨ Gemini 思考中...";
-  elements.aiStatusIndicator.classList.remove("hidden");
-
   const contents = state.conversationHistory.map((m) => ({
     role: m.role,
     parts: [{ text: m.text }]
@@ -2100,7 +2154,7 @@ async function callGeminiApi(userPrompt) {
     }
   };
 
-  const modelsToTry = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
   let data = null;
   let lastErr = null;
 
@@ -2108,11 +2162,15 @@ async function callGeminiApi(userPrompt) {
     for (const modelName of modelsToTry) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2000);
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: ctrl.signal
         });
+        clearTimeout(timer);
 
         const json = await res.json();
         if (res.ok && !json.error) {
@@ -2126,7 +2184,7 @@ async function callGeminiApi(userPrompt) {
       }
     }
 
-    elements.aiStatusIndicator.classList.add("hidden");
+    hideThinkingIndicator();
 
     if (!data) {
       console.error("Gemini Error across all models:", lastErr);
@@ -2152,7 +2210,7 @@ async function callGeminiApi(userPrompt) {
     speak(replyText);
 
   } catch (err) {
-    elements.aiStatusIndicator.classList.add("hidden");
+    hideThinkingIndicator();
     updateBadgeState("error");
     console.error("Fetch Gemini error:", err);
     const fallbackReply = "通信環境が不安定なようです。セコンドには僕がいますから、きのぴぃのペースでいきましょう。";
@@ -2297,16 +2355,11 @@ async function handleQuickAction(action) {
 
   addMessageBubble("user", item.label, null, true);
 
-  // 自然な会話の間
-  await new Promise(r => setTimeout(r, 350));
-
   let reply = "";
   // 💡 モヤモヤのみ Gemini で深く思考をほぐす。🍪 おなか減った / 🛌 もう無理 は即時定型文
   if (action === "coach" && state.geminiEnabled && state.geminiApiKey) {
+    showThinkingIndicator("Mattが思考中...");
     try {
-      elements.aiStatusIndicator.textContent = "✨ Gemini 思考中...";
-      elements.aiStatusIndicator.classList.remove("hidden");
-
       const contents = state.conversationHistory.map((m) => ({
         role: m.role,
         parts: [{ text: m.text }]
@@ -2325,21 +2378,19 @@ async function handleQuickAction(action) {
       const payload = {
         system_instruction: { parts: [{ text: `${DEFAULT_SYSTEM_PROMPT}${weatherLine}${coachingInstruction}` }] },
         contents: contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 50 } }
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
       };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-
-      elements.aiStatusIndicator.classList.add("hidden");
 
       if (res.ok) {
         const data = await res.json();
@@ -2351,10 +2402,11 @@ async function handleQuickAction(action) {
         }
       }
     } catch (apiErr) {
-      elements.aiStatusIndicator.classList.add("hidden");
       console.warn("Gemini API error on quick action:", apiErr);
     }
   }
+
+  hideThinkingIndicator();
 
   if (!reply) {
     const candidates = item.fallback;
