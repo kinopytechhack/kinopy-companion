@@ -55,6 +55,7 @@ const state = {
   syncGasUrl: localStorage.getItem("companion_sync_gas_url") || DEFAULT_CONFIG.syncGasUrl,
   voiceEnabled: localStorage.getItem("voice_enabled") !== "false",
   voiceSpeaker: localStorage.getItem("voice_speaker") || "11",
+  voiceFallbackSpeaker: localStorage.getItem("voice_fallback_speaker") || "os:Otoya",
   voicePitch: parseFloat(localStorage.getItem("voice_pitch") || "1.0"),
   voiceRate: parseFloat(localStorage.getItem("voice_rate") || "1.0"),
   memos: JSON.parse(localStorage.getItem("companion_memos") || "[]"),
@@ -140,6 +141,8 @@ const elements = {
   syncStatusBadge: document.getElementById("sync-status-badge"),
   voiceToggle: document.getElementById("voice-toggle"),
   voiceSpeaker: document.getElementById("voice-speaker"),
+  voiceFallbackSpeaker: document.getElementById("voice-fallback-speaker"),
+  fallbackVoiceGroup: document.getElementById("fallback-voice-group"),
   voicePitch: document.getElementById("voice-pitch"),
   voiceRate: document.getElementById("voice-rate"),
   notifyUpcomingToggle: document.getElementById("notify-upcoming-toggle"),
@@ -149,6 +152,7 @@ const elements = {
   pitchVal: document.getElementById("pitch-val"),
   rateVal: document.getElementById("rate-val"),
   btnVoicePreview: document.getElementById("btn-voice-preview"),
+  btnVoiceFallbackPreview: document.getElementById("btn-voice-fallback-preview"),
   btnRefreshDailyContext: document.getElementById("btn-refresh-daily-context"),
   dailyContextStatusText: document.getElementById("daily-context-status-text"),
   todayTokensVal: document.getElementById("today-tokens-val"),
@@ -438,6 +442,7 @@ function loadSettingsToUI() {
   state.syncGasUrl = localStorage.getItem("companion_sync_gas_url") || DEFAULT_CONFIG.syncGasUrl;
   state.voiceEnabled = localStorage.getItem("voice_enabled") !== "false";
   state.voiceSpeaker = localStorage.getItem("voice_speaker") || "11";
+  state.voiceFallbackSpeaker = localStorage.getItem("voice_fallback_speaker") || "os:Otoya";
   state.voicePitch = parseFloat(localStorage.getItem("voice_pitch") || "1.0");
   state.voiceRate = parseFloat(localStorage.getItem("voice_rate") || "1.0");
 
@@ -449,6 +454,8 @@ function loadSettingsToUI() {
   if (elements.companionSyncUrlInput) elements.companionSyncUrlInput.value = state.syncGasUrl;
   if (elements.voiceToggle) elements.voiceToggle.checked = state.voiceEnabled;
   if (elements.voiceSpeaker) elements.voiceSpeaker.value = state.voiceSpeaker;
+  if (elements.voiceFallbackSpeaker) elements.voiceFallbackSpeaker.value = state.voiceFallbackSpeaker;
+  updateVoiceSettingsUI();
   if (elements.voicePitch) elements.voicePitch.value = state.voicePitch;
   if (elements.voiceRate) elements.voiceRate.value = state.voiceRate;
   if (elements.notifyUpcomingToggle) elements.notifyUpcomingToggle.checked = state.notifyUpcoming;
@@ -1014,6 +1021,40 @@ function setupEventListeners() {
     }
   });
 
+  // 予備音声試聴
+  if (elements.btnVoiceFallbackPreview) {
+    elements.btnVoiceFallbackPreview.addEventListener("click", (e) => {
+      if (e) e.stopPropagation();
+      unlockAudioContext();
+      const fallbackId = elements.voiceFallbackSpeaker ? elements.voiceFallbackSpeaker.value : state.voiceFallbackSpeaker;
+      const rate = elements.voiceRate ? parseFloat(elements.voiceRate.value) : state.voiceRate;
+      const pitch = elements.voicePitch ? parseFloat(elements.voicePitch.value) : state.voicePitch;
+      const sampleText = voiceSamples[fallbackId] || voiceSamples["os"] || "きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。";
+
+      const originalText = elements.btnVoiceFallbackPreview.textContent;
+      elements.btnVoiceFallbackPreview.textContent = "🔊 再生中...";
+      elements.btnVoiceFallbackPreview.disabled = true;
+
+      if (state.sharedAudio) {
+        state.sharedAudio.pause();
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      try {
+        speakWithWebSpeech(sampleText, rate, pitch, fallbackId);
+      } catch (err) {
+        console.warn("Voice fallback preview error:", err);
+      } finally {
+        setTimeout(() => {
+          elements.btnVoiceFallbackPreview.textContent = originalText;
+          elements.btnVoiceFallbackPreview.disabled = false;
+        }, 500);
+      }
+    });
+  }
+
   // クイックアクションボタン
   document.querySelectorAll(".quick-actions-left .quick-icon-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1270,38 +1311,83 @@ const voiceSamples = {
 
 // OS標準音声を動的に取得してセレクトボックスに反映
 function populateOsVoiceOptions() {
-  if (!("speechSynthesis" in window) || !elements.voiceSpeaker) return;
+  if (!("speechSynthesis" in window)) return;
   const voices = window.speechSynthesis.getVoices();
   const jaVoices = voices.filter(v => v.lang.includes("ja") || v.lang.includes("JP"));
 
-  let osGroup = elements.voiceSpeaker.querySelector('optgroup[data-type="os-voices"]');
-  if (!osGroup) {
-    osGroup = document.createElement("optgroup");
-    osGroup.label = "💻 OS標準音声（完全オフライン・高速・安定）";
-    osGroup.setAttribute("data-type", "os-voices");
-    elements.voiceSpeaker.insertBefore(osGroup, elements.voiceSpeaker.firstChild);
+  // 1. メイン音声セレクトボックスのOSボイスグループ更新
+  if (elements.voiceSpeaker) {
+    let osGroup = elements.voiceSpeaker.querySelector('optgroup[data-type="os-voices"]');
+    if (!osGroup) {
+      osGroup = document.createElement("optgroup");
+      osGroup.label = "💻 OS標準音声（完全オフライン・高速・安定）";
+      osGroup.setAttribute("data-type", "os-voices");
+      elements.voiceSpeaker.appendChild(osGroup);
+    }
+
+    if (jaVoices.length === 0) {
+      osGroup.innerHTML = `
+        <option value="os:Otoya">macOS/iOS: Otoya (日本語・男性)</option>
+        <option value="os:Kyoko">macOS/iOS: Kyoko (日本語・女性)</option>
+        <option value="os:Siri">macOS/iOS: Siri (日本語)</option>
+        <option value="os">OS標準 自動選択</option>
+      `;
+    } else {
+      osGroup.innerHTML = jaVoices.map(v => {
+        const isMale = /otoya|hattori|male|男/i.test(v.name);
+        const isFemale = /kyoko|female|女/i.test(v.name);
+        const genderLabel = isMale ? " (男性)" : isFemale ? " (女性)" : "";
+        return `<option value="os:${v.name}">OS: ${v.name}${genderLabel}</option>`;
+      }).join("") + '<option value="os">OS標準 自動選択</option>';
+    }
+
+    if (state.voiceSpeaker) {
+      elements.voiceSpeaker.value = state.voiceSpeaker;
+    }
   }
 
-  if (jaVoices.length === 0) {
-    osGroup.innerHTML = `
-      <option value="os:Otoya">macOS/iOS: Otoya (日本語・男性)</option>
-      <option value="os:Kyoko">macOS/iOS: Kyoko (日本語・女性)</option>
-      <option value="os:Siri">macOS/iOS: Siri (日本語)</option>
-      <option value="os">OS標準 自動選択</option>
-    `;
+  // 2. 予備・オフライン音声セレクトボックス更新
+  if (elements.voiceFallbackSpeaker) {
+    if (jaVoices.length === 0) {
+      elements.voiceFallbackSpeaker.innerHTML = `
+        <option value="os:Otoya">macOS/iOS: Otoya (日本語・男性)</option>
+        <option value="os:Kyoko">macOS/iOS: Kyoko (日本語・女性)</option>
+        <option value="os:Siri">macOS/iOS: Siri (日本語)</option>
+        <option value="os">OS標準 自動選択</option>
+      `;
+    } else {
+      elements.voiceFallbackSpeaker.innerHTML = jaVoices.map(v => {
+        const isMale = /otoya|hattori|male|男/i.test(v.name);
+        const isFemale = /kyoko|female|女/i.test(v.name);
+        const genderLabel = isMale ? " (男性)" : isFemale ? " (女性)" : "";
+        return `<option value="os:${v.name}">OS: ${v.name}${genderLabel}</option>`;
+      }).join("") + '<option value="os">OS標準 自動選択</option>';
+    }
+
+    if (state.voiceFallbackSpeaker) {
+      elements.voiceFallbackSpeaker.value = state.voiceFallbackSpeaker;
+    }
+  }
+
+  updateVoiceSettingsUI();
+}
+
+function updateVoiceSettingsUI() {
+  if (!elements.voiceSpeaker || !elements.fallbackVoiceGroup) return;
+  const isPrimaryOs = elements.voiceSpeaker.value.startsWith("os");
+  if (isPrimaryOs) {
+    elements.fallbackVoiceGroup.style.opacity = "0.5";
+    if (elements.voiceFallbackSpeaker) elements.voiceFallbackSpeaker.disabled = true;
+    if (elements.btnVoiceFallbackPreview) elements.btnVoiceFallbackPreview.disabled = true;
   } else {
-    osGroup.innerHTML = jaVoices.map(v => {
-      const isMale = /otoya|hattori|male|男/i.test(v.name);
-      const isFemale = /kyoko|female|女/i.test(v.name);
-      const genderLabel = isMale ? " (男性)" : isFemale ? " (女性)" : "";
-      return `<option value="os:${v.name}">OS: ${v.name}${genderLabel}</option>`;
-    }).join("") + '<option value="os">OS標準 自動選択</option>';
+    elements.fallbackVoiceGroup.style.opacity = "1.0";
+    if (elements.voiceFallbackSpeaker) elements.voiceFallbackSpeaker.disabled = false;
+    if (elements.btnVoiceFallbackPreview) elements.btnVoiceFallbackPreview.disabled = false;
   }
+}
 
-  // 保存済みの選択値を復元
-  if (state.voiceSpeaker) {
-    elements.voiceSpeaker.value = state.voiceSpeaker;
-  }
+if (elements.voiceSpeaker) {
+  elements.voiceSpeaker.addEventListener("change", updateVoiceSettingsUI);
 }
 
 if ("speechSynthesis" in window) {
@@ -1340,7 +1426,8 @@ function speak(text) {
           console.warn("VOICEVOX failed, fallback to Web Speech:", err);
         }
       }
-      speakWithWebSpeech(text, state.voiceRate, state.voicePitch, state.voiceSpeaker);
+      const voiceToUse = state.voiceSpeaker.startsWith("os") ? state.voiceSpeaker : (state.voiceFallbackSpeaker || "os:Otoya");
+      speakWithWebSpeech(text, state.voiceRate, state.voicePitch, voiceToUse);
     } catch (e) {
       console.error("PWA speech synthesis error:", e);
     }
@@ -3112,6 +3199,9 @@ function saveSettings(showBubble = true) {
   }
   state.voiceEnabled = elements.voiceToggle.checked;
   state.voiceSpeaker = elements.voiceSpeaker.value;
+  if (elements.voiceFallbackSpeaker) {
+    state.voiceFallbackSpeaker = elements.voiceFallbackSpeaker.value;
+  }
   state.voicePitch = parseFloat(elements.voicePitch.value);
   state.voiceRate = parseFloat(elements.voiceRate.value);
   if (elements.notifyUpcomingToggle) {
@@ -3135,6 +3225,7 @@ function saveSettings(showBubble = true) {
   localStorage.setItem("companion_sync_gas_url", state.syncGasUrl);
   localStorage.setItem("voice_enabled", state.voiceEnabled);
   localStorage.setItem("voice_speaker", state.voiceSpeaker);
+  localStorage.setItem("voice_fallback_speaker", state.voiceFallbackSpeaker);
   localStorage.setItem("voice_pitch", state.voicePitch);
   localStorage.setItem("voice_rate", state.voiceRate);
   localStorage.setItem("notify_upcoming", state.notifyUpcoming);
