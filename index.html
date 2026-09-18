@@ -9,16 +9,16 @@
   <title>Kinopy's Second</title>
   
   <!-- PWA / iOS Settings -->
-  <link rel="manifest" href="manifest.json?v=20260918-2105">
+  <link rel="manifest" href="manifest.json?v=20260918-2125">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Kinopy's Second">
-  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-2105">
-  <link rel="icon" href="assets/icon.png?v=20260918-2105">
-  <link rel="shortcut icon" href="favicon.ico?v=20260918-2105">
+  <link rel="apple-touch-icon" href="assets/icon.png?v=20260918-2125">
+  <link rel="icon" href="assets/icon.png?v=20260918-2125">
+  <link rel="shortcut icon" href="favicon.ico?v=20260918-2125">
   <meta name="theme-color" content="#FAF7F0">
 
-  <link rel="stylesheet" href="style.css?v=20260918-2105">
+  <link rel="stylesheet" href="style.css?v=20260918-2125">
   <script>
     // フェイルセーフな画面切り替え関数（HTMLロード直後から即時動作）
     window.pwaOpenChat = function(e) {
@@ -193,6 +193,13 @@
           <span id="timer-badge" class="timer-badge hidden">⏱️ 15:00</span>
         </div>
       </main>
+
+      <!-- 4.5. チャット画面内キャラクター表示エリア (タイムラインと入力欄の間) -->
+      <div class="chat-character-bar" id="chat-character-bar" onclick="window.pwaToggleScreen(event)" title="タップでキャラ全画面表示">
+        <div class="chat-char-avatar-ring">
+          <img src="assets/01_normal.png" alt="Kinopy's Second" id="chat-char-avatar-img" class="chat-char-avatar-img">
+        </div>
+      </div>
 
       <!-- 5. クイックアイコンバー (入力欄のすぐ上・左:📝💡🍪🛌 / 右:🎤📋🔊) -->
       <div class="quick-actions-bar">
@@ -372,6 +379,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260918-2105"></script>
+  <script src="app.js?v=20260918-2125"></script>
 </body>
 </html>

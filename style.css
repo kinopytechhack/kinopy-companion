@@ -935,6 +935,48 @@ body {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* 4.5. チャット画面内キャラクター表示エリア (タイムラインと入力欄の間) */
+.chat-character-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 64px;
+  min-height: 64px;
+  max-height: 72px;
+  padding: 2px 0;
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: transparent;
+}
+
+.chat-char-avatar-ring {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
+  animation: floating 3.5s infinite ease-in-out;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-char-avatar-ring:hover {
+  transform: scale(1.06);
+}
+
+.chat-char-avatar-ring:active {
+  transform: scale(0.92);
+}
+
+.chat-char-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
 /* 5. クイックアクションバー (Mac版完全同一: 左=📝💡🍪🛌, 右=🎤📋🔊) */
 .quick-actions-bar {
   display: flex;

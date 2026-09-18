@@ -1404,9 +1404,18 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
 let currentCutOverride = null;
 let lipSyncTimer = null;
 
+function getAvatarImgs() {
+  const list = [];
+  const m = document.getElementById("mascot-avatar-img");
+  if (m) list.push(m);
+  const c = document.getElementById("chat-char-avatar-img");
+  if (c) list.push(c);
+  return list;
+}
+
 function setAvatarCut(cutName, durationMs = 0) {
-  const avatarImg = document.getElementById("mascot-avatar-img");
-  if (!avatarImg) return;
+  const imgs = getAvatarImgs();
+  if (imgs.length === 0) return;
 
   const cutMap = {
     normal: "assets/01_normal.png",
@@ -1418,7 +1427,7 @@ function setAvatarCut(cutName, durationMs = 0) {
     wait: "assets/07_wait.png"
   };
   const src = cutMap[cutName] || "assets/01_normal.png";
-  avatarImg.src = src;
+  imgs.forEach(img => { img.src = src; });
 
   if (durationMs > 0) {
     currentCutOverride = cutName;
@@ -1426,7 +1435,7 @@ function setAvatarCut(cutName, durationMs = 0) {
       if (currentCutOverride === cutName) {
         currentCutOverride = null;
         if (!state.isSpeaking) {
-          avatarImg.src = "assets/01_normal.png";
+          getAvatarImgs().forEach(img => { img.src = "assets/01_normal.png"; });
         }
       }
     }, durationMs);
@@ -1437,8 +1446,8 @@ let lipSyncEndTimeout = null;
 
 function startLipSync(durationMs = 0, isTts = false) {
   stopLipSync();
-  const avatarImg = document.getElementById("mascot-avatar-img");
-  if (!avatarImg) return;
+  const imgs = getAvatarImgs();
+  if (imgs.length === 0) return;
   let open = false;
   lipSyncTimer = setInterval(() => {
     if (isTts && !state.isSpeaking) {
@@ -1446,8 +1455,9 @@ function startLipSync(durationMs = 0, isTts = false) {
       return;
     }
     open = !open;
-    if (avatarImg && !currentCutOverride) {
-      avatarImg.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+    if (!currentCutOverride) {
+      const src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+      getAvatarImgs().forEach(img => { img.src = src; });
     }
   }, 160);
 
@@ -1467,9 +1477,8 @@ function stopLipSync() {
     clearTimeout(lipSyncEndTimeout);
     lipSyncEndTimeout = null;
   }
-  const avatarImg = document.getElementById("mascot-avatar-img");
-  if (avatarImg && !currentCutOverride) {
-    avatarImg.src = "assets/01_normal.png";
+  if (!currentCutOverride) {
+    getAvatarImgs().forEach(img => { img.src = "assets/01_normal.png"; });
   }
 }
 
