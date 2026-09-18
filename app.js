@@ -970,10 +970,14 @@ function setupEventListeners() {
 
   // スライダー値表示更新
   elements.voicePitch.addEventListener("input", (e) => {
-    elements.pitchVal.textContent = parseFloat(e.target.value).toFixed(1);
+    const val = parseFloat(e.target.value);
+    elements.pitchVal.textContent = val.toFixed(1);
+    state.voicePitch = val;
   });
   elements.voiceRate.addEventListener("input", (e) => {
-    elements.rateVal.textContent = parseFloat(e.target.value).toFixed(1);
+    const val = parseFloat(e.target.value);
+    elements.rateVal.textContent = val.toFixed(1);
+    state.voiceRate = val;
   });
 
   // 音声試聴

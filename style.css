@@ -1245,6 +1245,15 @@ body {
   -webkit-user-select: text;
 }
 
+.form-group input[type="range"] {
+  width: 100%;
+  accent-color: #6366f1;
+  cursor: pointer;
+  margin: 4px 0 2px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .token-stats-card {
   background: rgba(248, 250, 252, 0.9);
   border: 1px solid rgba(226, 232, 240, 0.9);
