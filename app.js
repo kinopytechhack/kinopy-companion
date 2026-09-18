@@ -1433,12 +1433,15 @@ function setAvatarCut(cutName, durationMs = 0) {
   }
 }
 
-function startLipSync() {
+let lipSyncEndTimeout = null;
+
+function startLipSync(durationMs = 0, isTts = false) {
   stopLipSync();
   const avatarImg = document.getElementById("mascot-avatar-img");
+  if (!avatarImg) return;
   let open = false;
   lipSyncTimer = setInterval(() => {
-    if (!state.isSpeaking) {
+    if (isTts && !state.isSpeaking) {
       stopLipSync();
       return;
     }
@@ -1446,13 +1449,23 @@ function startLipSync() {
     if (avatarImg && !currentCutOverride) {
       avatarImg.src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
     }
-  }, 180);
+  }, 160);
+
+  if (durationMs > 0) {
+    lipSyncEndTimeout = setTimeout(() => {
+      stopLipSync();
+    }, durationMs);
+  }
 }
 
 function stopLipSync() {
   if (lipSyncTimer) {
     clearInterval(lipSyncTimer);
     lipSyncTimer = null;
+  }
+  if (lipSyncEndTimeout) {
+    clearTimeout(lipSyncEndTimeout);
+    lipSyncEndTimeout = null;
   }
   const avatarImg = document.getElementById("mascot-avatar-img");
   if (avatarImg && !currentCutOverride) {
@@ -1476,6 +1489,10 @@ function showPwaFloatingBubble(text) {
 
   bubbleTextEl.textContent = text;
   bubbleEl.classList.remove("hidden", "fade-out");
+
+  // 吹き出し表示時に口パクアニメーションを連動発火
+  const duration = Math.min(5000, Math.max(1600, (text || '').length * 80));
+  startLipSync(duration, false);
 
   // 吹き出しタップでチャットを開く
   bubbleEl.onclick = (e) => {
