@@ -1331,49 +1331,84 @@ async function speakWithVoicevox(text, speakerId, rate = state.voiceRate, pitch 
   }
 
   const cleanText = text.replace(/[*_#`]/g, "").slice(0, 150);
-  const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
 
-  const ttsCtrl = new AbortController();
-  const ttsTimer = setTimeout(() => ttsCtrl.abort(), 2500);
-  const res = await fetch(webApiUrl, { signal: ttsCtrl.signal });
-  clearTimeout(ttsTimer);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  let audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl;
+  let arrayBuffer = null;
 
-  if (!audioUrl && data.audioStatusUrl) {
-    for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 200));
-      try {
-        const sCtrl = new AbortController();
-        const sTimer = setTimeout(() => sCtrl.abort(), 800);
-        const sRes = await fetch(data.audioStatusUrl, { signal: sCtrl.signal });
-        clearTimeout(sTimer);
-        if (sRes.ok) {
-          const sData = await sRes.json();
-          if (sData.isAudioReady && (sData.mp3StreamingUrl || sData.mp3DownloadUrl)) {
-            audioUrl = sData.mp3StreamingUrl || sData.mp3DownloadUrl;
-            break;
-          }
-          if (sData.isAudioError) {
-            throw new Error(sData.errorMessage || "Audio generation failed");
-          }
-        }
-      } catch (pollErr) {
-        console.warn("PWA audio poll warning:", pollErr);
+  // 1. ローカル VOICEVOX Engine (localhost:50021・超高速チェック 400ms)
+  try {
+    const localQueryCtrl = new AbortController();
+    const lqTimer = setTimeout(() => localQueryCtrl.abort(), 400);
+    const localQuery = await fetch(`http://localhost:50021/audio_query?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`, {
+      method: "POST",
+      signal: localQueryCtrl.signal
+    });
+    clearTimeout(lqTimer);
+
+    if (localQuery.ok) {
+      const queryJson = await localQuery.json();
+      queryJson.speedScale = rate;
+      queryJson.pitchScale = (pitch - 1.0) * 0.15;
+      const localSynthCtrl = new AbortController();
+      const lsTimer = setTimeout(() => localSynthCtrl.abort(), 1200);
+      const localSynth = await fetch(`http://localhost:50021/synthesis?speaker=${speakerId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(queryJson),
+        signal: localSynthCtrl.signal
+      });
+      clearTimeout(lsTimer);
+      if (localSynth.ok) {
+        arrayBuffer = await localSynth.arrayBuffer();
       }
     }
+  } catch (e) {}
+
+  // 2. ローカルがない場合は公開 VOICEVOX WebAPI を使用
+  if (!arrayBuffer) {
+    const webApiUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(cleanText)}&speaker=${speakerId}`;
+
+    const ttsCtrl = new AbortController();
+    const ttsTimer = setTimeout(() => ttsCtrl.abort(), 2500);
+    const res = await fetch(webApiUrl, { signal: ttsCtrl.signal });
+    clearTimeout(ttsTimer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    let audioUrl = data.mp3StreamingUrl || data.mp3DownloadUrl;
+
+    if (!audioUrl && data.audioStatusUrl) {
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        try {
+          const sCtrl = new AbortController();
+          const sTimer = setTimeout(() => sCtrl.abort(), 800);
+          const sRes = await fetch(data.audioStatusUrl, { signal: sCtrl.signal });
+          clearTimeout(sTimer);
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            if (sData.isAudioReady && (sData.mp3StreamingUrl || sData.mp3DownloadUrl)) {
+              audioUrl = sData.mp3StreamingUrl || sData.mp3DownloadUrl;
+              break;
+            }
+            if (sData.isAudioError) {
+              throw new Error(sData.errorMessage || "Audio generation failed");
+            }
+          }
+        } catch (pollErr) {
+          console.warn("PWA audio poll warning:", pollErr);
+        }
+      }
+    }
+
+    if (!audioUrl) throw new Error("No audio URL available");
+
+    // 音声バイナリを取得（最大2.5s）
+    const aCtrl = new AbortController();
+    const aTimer = setTimeout(() => aCtrl.abort(), 2500);
+    const audioRes = await fetch(audioUrl, { signal: aCtrl.signal });
+    clearTimeout(aTimer);
+    if (!audioRes.ok) throw new Error(`Audio fetch failed: ${audioRes.status}`);
+    arrayBuffer = await audioRes.arrayBuffer();
   }
-
-  if (!audioUrl) throw new Error("No audio URL available");
-
-  // 音声バイナリを取得（最大2.5s）
-  const aCtrl = new AbortController();
-  const aTimer = setTimeout(() => aCtrl.abort(), 2500);
-  const audioRes = await fetch(audioUrl, { signal: aCtrl.signal });
-  clearTimeout(aTimer);
-  if (!audioRes.ok) throw new Error(`Audio fetch failed: ${audioRes.status}`);
-  const arrayBuffer = await audioRes.arrayBuffer();
 
   const audioCtx = getPwaAudioContext();
   if (!audioCtx) throw new Error("AudioContext not available");
