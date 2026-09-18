@@ -983,7 +983,7 @@ function setupEventListeners() {
     const speakerId = elements.voiceSpeaker ? elements.voiceSpeaker.value : state.voiceSpeaker;
     const rate = elements.voiceRate ? parseFloat(elements.voiceRate.value) : state.voiceRate;
     const pitch = elements.voicePitch ? parseFloat(elements.voicePitch.value) : state.voicePitch;
-    const sampleText = voiceSamples[speakerId] || voiceSamples["11"] || "きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。";
+    const sampleText = voiceSamples[speakerId] || voiceSamples[speakerId.replace(/^os:.*/, "os")] || voiceSamples["11"] || "きのぴぃ、いつもお疲れさま！今日も一緒にととのっていこうね。";
 
     const originalText = elements.btnVoicePreview.textContent;
     elements.btnVoicePreview.textContent = "🔊 再生中...";
@@ -997,14 +997,13 @@ function setupEventListeners() {
     }
 
     try {
-      if (speakerId !== "os") {
+      if (!speakerId.startsWith("os") && speakerId !== "os") {
         await speakWithVoicevox(sampleText, speakerId, rate, pitch);
       } else {
-        speakWithWebSpeech(sampleText, rate, pitch);
+        speakWithWebSpeech(sampleText, rate, pitch, speakerId);
       }
     } catch (err) {
       console.warn("Voice preview error:", err);
-      // フォールバックでWeb Speechを鳴らすと別人の声に感じられるため、プレビュー時はエラーログのみ
     } finally {
       elements.btnVoicePreview.textContent = originalText;
       elements.btnVoicePreview.disabled = false;
@@ -1265,10 +1264,49 @@ const voiceSamples = {
   "os": "お疲れさまです、きのぴぃ！何でも声をかけてくださいね。"
 };
 
+// OS標準音声を動的に取得してセレクトボックスに反映
+function populateOsVoiceOptions() {
+  if (!("speechSynthesis" in window) || !elements.voiceSpeaker) return;
+  const voices = window.speechSynthesis.getVoices();
+  const jaVoices = voices.filter(v => v.lang.includes("ja") || v.lang.includes("JP"));
+
+  let osGroup = elements.voiceSpeaker.querySelector('optgroup[data-type="os-voices"]');
+  if (!osGroup) {
+    osGroup = document.createElement("optgroup");
+    osGroup.label = "💻 OS標準音声（完全オフライン・高速・安定）";
+    osGroup.setAttribute("data-type", "os-voices");
+    elements.voiceSpeaker.insertBefore(osGroup, elements.voiceSpeaker.firstChild);
+  }
+
+  if (jaVoices.length === 0) {
+    osGroup.innerHTML = `
+      <option value="os:Otoya">macOS/iOS: Otoya (日本語・男性)</option>
+      <option value="os:Kyoko">macOS/iOS: Kyoko (日本語・女性)</option>
+      <option value="os:Siri">macOS/iOS: Siri (日本語)</option>
+      <option value="os">OS標準 自動選択</option>
+    `;
+  } else {
+    osGroup.innerHTML = jaVoices.map(v => {
+      const isMale = /otoya|hattori|male|男/i.test(v.name);
+      const isFemale = /kyoko|female|女/i.test(v.name);
+      const genderLabel = isMale ? " (男性)" : isFemale ? " (女性)" : "";
+      return `<option value="os:${v.name}">OS: ${v.name}${genderLabel}</option>`;
+    }).join("") + '<option value="os">OS標準 自動選択</option>';
+  }
+
+  // 保存済みの選択値を復元
+  if (state.voiceSpeaker) {
+    elements.voiceSpeaker.value = state.voiceSpeaker;
+  }
+}
+
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = populateOsVoiceOptions;
+  setTimeout(populateOsVoiceOptions, 100);
+}
+
 // ==========================================
 // 音声合成 (VOICEVOX ＆ iOS Web Speech 最適化)
-// ==========================================
-// 音声合成 (VOICEVOX 優先 + Web Speech API フォールバック・完全非同期化)
 // ==========================================
 function speak(text) {
   if (!state.voiceEnabled) return;
@@ -1290,7 +1328,7 @@ function speak(text) {
   // バックグラウンドで非同期実行（UIイベントループを一切ブロックしない）
   (async () => {
     try {
-      if (state.voiceSpeaker !== "os") {
+      if (!state.voiceSpeaker.startsWith("os") && state.voiceSpeaker !== "os") {
         try {
           await speakWithVoicevox(text, state.voiceSpeaker, state.voiceRate, state.voicePitch);
           return;
@@ -1298,7 +1336,7 @@ function speak(text) {
           console.warn("VOICEVOX failed, fallback to Web Speech:", err);
         }
       }
-      speakWithWebSpeech(text, state.voiceRate, state.voicePitch);
+      speakWithWebSpeech(text, state.voiceRate, state.voicePitch, state.voiceSpeaker);
     } catch (e) {
       console.error("PWA speech synthesis error:", e);
     }
@@ -1628,18 +1666,34 @@ function updatePwaCharacterTaskBar(icon, text, title = "") {
   if (elements.mascotTaskBar && title) elements.mascotTaskBar.title = title;
 }
 
-function speakWithWebSpeech(text, rate = state.voiceRate, pitch = state.voicePitch) {
+function speakWithWebSpeech(text, rate = state.voiceRate, pitch = state.voicePitch, preferredVoice = state.voiceSpeaker) {
   if (!("speechSynthesis" in window)) return;
 
   const cleanText = text.replace(/[*_#`]/g, "");
+  if (!cleanText) return;
+
+  window.speechSynthesis.cancel();
+
   const uttr = new SpeechSynthesisUtterance(cleanText);
   uttr.lang = "ja-JP";
   uttr.pitch = pitch;
   uttr.rate = rate;
 
   const voices = window.speechSynthesis.getVoices();
-  const jpVoice = voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
-  if (jpVoice) uttr.voice = jpVoice;
+  let selectedVoice = null;
+
+  if (preferredVoice && preferredVoice.startsWith("os:")) {
+    const targetName = preferredVoice.replace(/^os:/, "").toLowerCase();
+    selectedVoice = voices.find(v => v.name.toLowerCase().includes(targetName));
+  }
+
+  if (!selectedVoice) {
+    selectedVoice = voices.find(v => (v.lang.includes("ja") || v.lang.includes("JP")) && /otoya/i.test(v.name))
+                 || voices.find(v => (v.lang.includes("ja") || v.lang.includes("JP")) && /kyoko/i.test(v.name))
+                 || voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
+  }
+
+  if (selectedVoice) uttr.voice = selectedVoice;
 
   uttr.onstart = () => {
     state.isSpeaking = true;

@@ -282,11 +282,17 @@
           </div>
           <div class="form-group">
             <div class="form-label-row">
-              <label for="voice-speaker">キャラクター声（VOICEVOX）</label>
+              <label for="voice-speaker">音声・キャラクター声</label>
               <button id="btn-voice-preview" class="preview-voice-btn" type="button">🔊 試聴</button>
             </div>
             <select id="voice-speaker" class="form-select">
-              <optgroup label="👨 男性・友達／相棒ボイス">
+              <optgroup label="💻 OS標準音声（完全オフライン・高速・安定）" id="os-voice-optgroup" data-type="os-voices">
+                <option value="os:Otoya">macOS/iOS: Otoya (日本語・男性)</option>
+                <option value="os:Kyoko">macOS/iOS: Kyoko (日本語・女性)</option>
+                <option value="os:Siri">macOS/iOS: Siri (日本語)</option>
+                <option value="os">OS標準 自動選択</option>
+              </optgroup>
+              <optgroup label="👨 VOICEVOX 男性・相棒ボイス（無料WebAPI）">
                 <option value="11" selected>玄野武宏・通常（落ち着いた親友・執事声）</option>
                 <option value="39">玄野武宏・喜び（明るい親友声）</option>
                 <option value="12">白上虎太郎（元気な親友・少年声）</option>
@@ -296,14 +302,11 @@
                 <option value="13">青山龍星（低音・頼れるイケボ）</option>
                 <option value="52">麒ヶ島宗麟（渋くて頼もしい兄貴声）</option>
               </optgroup>
-              <optgroup label="👧 女性・マスコットボイス">
+              <optgroup label="👧 VOICEVOX 女性・マスコットボイス（無料WebAPI）">
                 <option value="8">春日部つむぎ（明るく元気な親友声）</option>
                 <option value="2">四国めたん（丁寧・お嬢様執事声）</option>
                 <option value="3">ずんだもん（ポップ・マスコット声）</option>
                 <option value="10">雨晴はう（優しく癒やし系ボイス）</option>
-              </optgroup>
-              <optgroup label="📱 その他">
-                <option value="os">端末標準音声（iOS標準）</option>
               </optgroup>
             </select>
           </div>
@@ -379,6 +382,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260918-2216"></script>
+  <script src="app.js?v=20260918-2335"></script>
 </body>
 </html>
