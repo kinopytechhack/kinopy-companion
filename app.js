@@ -1680,8 +1680,6 @@ function speakWithWebSpeech(text, rate = state.voiceRate, pitch = state.voicePit
 
   const uttr = new SpeechSynthesisUtterance(cleanText);
   uttr.lang = "ja-JP";
-  uttr.pitch = pitch;
-  uttr.rate = rate;
 
   const voices = window.speechSynthesis.getVoices();
   let selectedVoice = null;
@@ -1697,7 +1695,13 @@ function speakWithWebSpeech(text, rate = state.voiceRate, pitch = state.voicePit
                  || voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
   }
 
-  if (selectedVoice) uttr.voice = selectedVoice;
+  if (selectedVoice) {
+    uttr.voice = selectedVoice;
+  }
+
+  // voice設定後にピッチと速度を確実に適用
+  uttr.pitch = Math.max(0.1, Math.min(2.0, pitch));
+  uttr.rate = Math.max(0.1, Math.min(2.0, rate));
 
   uttr.onstart = () => {
     state.isSpeaking = true;
@@ -2504,6 +2508,9 @@ async function handleQuickAction(action) {
           console.warn(`Gemini API error on quick action (${modelName}):`, apiErr);
         }
       }
+    } catch (err) {
+      console.warn("Gemini quick action error:", err);
+    }
   }
 
   hideThinkingIndicator();
