@@ -941,10 +941,9 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 64px;
-  min-height: 64px;
-  max-height: 72px;
-  padding: 2px 0;
+  height: 200px;
+  min-height: 200px;
+  padding: 4px 0;
   position: relative;
   flex-shrink: 0;
   cursor: pointer;
@@ -952,22 +951,22 @@ body {
 }
 
 .chat-char-avatar-ring {
-  width: 60px;
-  height: 60px;
+  width: 200px;
+  height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.18));
   animation: floating 3.5s infinite ease-in-out;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .chat-char-avatar-ring:hover {
-  transform: scale(1.06);
+  transform: scale(1.03);
 }
 
 .chat-char-avatar-ring:active {
-  transform: scale(0.92);
+  transform: scale(0.94);
 }
 
 .chat-char-avatar-img {
