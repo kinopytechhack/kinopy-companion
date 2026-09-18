@@ -2154,7 +2154,7 @@ async function callGeminiApi(userPrompt) {
     }
   };
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
+  const modelsToTry = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
   let data = null;
   let lastErr = null;
 
@@ -2187,11 +2187,11 @@ async function callGeminiApi(userPrompt) {
     hideThinkingIndicator();
 
     if (!data) {
-      console.error("Gemini Error across all models:", lastErr);
+      console.warn("Gemini Error across all models:", lastErr);
       updateBadgeState("error");
-      const errReply = `Geminiとの通信でエラーが出ました（${lastErr?.message || "エラー"}）。内蔵モードで応答しますね。`;
-      addMessageBubble("bot", errReply, null, true);
-      speak(errReply);
+      const localReply = getRuleBasedReply(userText);
+      addMessageBubble("bot", localReply, null, true);
+      speak(localReply);
       return;
     }
 
@@ -2381,29 +2381,36 @@ async function handleQuickAction(action) {
         generationConfig: { temperature: 0.7, maxOutputTokens: 1000 }
       };
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const modelsToTry = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+      for (const modelName of modelsToTry) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(state.geminiApiKey)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const data = await res.json();
-        const parts = data?.candidates?.[0]?.content?.parts || [];
-        const textPart = parts.find(p => !p.thought && p.text) || parts[parts.length - 1];
-        reply = textPart?.text?.trim() || "";
-        if (data?.usageMetadata?.totalTokenCount) {
-          recordTokenUsage(data.usageMetadata.totalTokenCount);
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.error) {
+              const parts = data?.candidates?.[0]?.content?.parts || [];
+              const textPart = parts.find(p => !p.thought && p.text) || parts[parts.length - 1];
+              reply = textPart?.text?.trim() || "";
+              if (data?.usageMetadata?.totalTokenCount) {
+                recordTokenUsage(data.usageMetadata.totalTokenCount);
+              }
+              if (reply) break;
+            }
+          }
+        } catch (apiErr) {
+          console.warn(`Gemini API error on quick action (${modelName}):`, apiErr);
         }
       }
-    } catch (apiErr) {
-      console.warn("Gemini API error on quick action:", apiErr);
-    }
   }
 
   hideThinkingIndicator();
