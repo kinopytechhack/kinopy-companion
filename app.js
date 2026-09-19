@@ -1669,6 +1669,22 @@ function getBaseAvatarSrc() {
   return "assets/01_normal.png";
 }
 
+function getCurrentCutSrc() {
+  const cutMap = {
+    normal: "assets/01_normal.png",
+    speaking: "assets/02_speaking.png",
+    happy: "assets/03_happy.png",
+    worried: "assets/04_worried.png",
+    snack: "assets/05_snack.png",
+    sleepy: "assets/06_sleepy.png",
+    wait: "assets/07_wait.png"
+  };
+  if (currentCutOverride && cutMap[currentCutOverride]) {
+    return cutMap[currentCutOverride];
+  }
+  return getBaseAvatarSrc();
+}
+
 function setAvatarCut(cutName, durationMs = 0) {
   const imgs = getAvatarImgs();
   if (imgs.length === 0) return;
@@ -1713,10 +1729,8 @@ function startLipSync(durationMs = 0, isTts = false) {
       return;
     }
     open = !open;
-    if (!currentCutOverride) {
-      const src = open ? "assets/02_speaking.png" : getBaseAvatarSrc();
-      getAvatarImgs().forEach(img => { img.src = src; });
-    }
+    const src = open ? "assets/02_speaking.png" : getCurrentCutSrc();
+    getAvatarImgs().forEach(img => { img.src = src; });
   }, 160);
 
   if (durationMs > 0) {
@@ -1735,9 +1749,7 @@ function stopLipSync() {
     clearTimeout(lipSyncEndTimeout);
     lipSyncEndTimeout = null;
   }
-  if (!currentCutOverride) {
-    getAvatarImgs().forEach(img => { img.src = getBaseAvatarSrc(); });
-  }
+  getAvatarImgs().forEach(img => { img.src = getCurrentCutSrc(); });
 }
 
 // 深夜判定（23:30〜05:00）
@@ -1755,9 +1767,14 @@ function checkBrakeIntent(userText, replyText) {
   const combined = `${userText || ""} ${replyText || ""}`;
   const brakeKeywords = [
     "徹夜", "寝てない", "休めない", "終わらない", "限界", "死にそう", "無理して", "倒れそう",
-    "ちょっと待て", "無理するな", "ストップ", "休んで", "休もう", "寝よう", "寝なさい", "一旦落ち着け", "落ち着け"
+    "ちょっと待て", "無理するな", "ストップ", "休んで", "休もう", "寝よう", "寝なさい", "一旦落ち着け", "落ち着け",
+    "夜更かし", "早く寝"
   ];
-  return brakeKeywords.some(kw => combined.includes(kw));
+  if (brakeKeywords.some(kw => combined.includes(kw))) return true;
+  if (isLateNight() && /(仕事|タスク|作業|開発|コード|終わら|進捗|これから)/.test(userText || "")) {
+    return true;
+  }
+  return false;
 }
 
 // PWAミニフローティング吹き出し制御（常時表示仕様・チラつき完全防止）
@@ -2470,7 +2487,7 @@ async function callGeminiApi(userPrompt) {
       recordTokenUsage(data.usageMetadata.totalTokenCount);
     }
 
-    if (isLateNight() || checkBrakeIntent(userPrompt, replyText)) {
+    if (checkBrakeIntent(userPrompt, replyText)) {
       setAvatarCut("wait", 10000);
     }
 
@@ -2551,7 +2568,7 @@ function handleBuiltinResponse(text) {
     reply = defaultList[Math.floor(Math.random() * defaultList.length)];
   }
 
-  if (isLateNight() || checkBrakeIntent(text, reply)) {
+  if (checkBrakeIntent(text, reply)) {
     setAvatarCut("wait", 10000);
   }
 
