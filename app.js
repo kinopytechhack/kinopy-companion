@@ -1662,6 +1662,13 @@ function getAvatarImgs() {
   return list;
 }
 
+function getBaseAvatarSrc() {
+  if (state.activeTimer || state.timerSecondsRemaining > 0) {
+    return "assets/06_sleepy.png";
+  }
+  return "assets/01_normal.png";
+}
+
 function setAvatarCut(cutName, durationMs = 0) {
   const imgs = getAvatarImgs();
   if (imgs.length === 0) return;
@@ -1675,7 +1682,7 @@ function setAvatarCut(cutName, durationMs = 0) {
     sleepy: "assets/06_sleepy.png",
     wait: "assets/07_wait.png"
   };
-  const src = cutMap[cutName] || "assets/01_normal.png";
+  const src = cutMap[cutName] || getBaseAvatarSrc();
   imgs.forEach(img => { img.src = src; });
 
   if (durationMs > 0) {
@@ -1684,10 +1691,12 @@ function setAvatarCut(cutName, durationMs = 0) {
       if (currentCutOverride === cutName) {
         currentCutOverride = null;
         if (!state.isSpeaking) {
-          getAvatarImgs().forEach(img => { img.src = "assets/01_normal.png"; });
+          getAvatarImgs().forEach(img => { img.src = getBaseAvatarSrc(); });
         }
       }
     }, durationMs);
+  } else if (cutName === "normal") {
+    currentCutOverride = null;
   }
 }
 
@@ -1705,7 +1714,7 @@ function startLipSync(durationMs = 0, isTts = false) {
     }
     open = !open;
     if (!currentCutOverride) {
-      const src = open ? "assets/02_speaking.png" : "assets/01_normal.png";
+      const src = open ? "assets/02_speaking.png" : getBaseAvatarSrc();
       getAvatarImgs().forEach(img => { img.src = src; });
     }
   }, 160);
@@ -1727,8 +1736,28 @@ function stopLipSync() {
     lipSyncEndTimeout = null;
   }
   if (!currentCutOverride) {
-    getAvatarImgs().forEach(img => { img.src = "assets/01_normal.png"; });
+    getAvatarImgs().forEach(img => { img.src = getBaseAvatarSrc(); });
   }
+}
+
+// 深夜判定（23:30〜05:00）
+function isLateNight() {
+  const now = new Date();
+  const hour = now.getHours();
+  const min = now.getMinutes();
+  if (hour === 23 && min >= 30) return true;
+  if (hour >= 0 && hour < 5) return true;
+  return false;
+}
+
+// ストップ・制止（ブレーキ）判定
+function checkBrakeIntent(userText, replyText) {
+  const combined = `${userText || ""} ${replyText || ""}`;
+  const brakeKeywords = [
+    "徹夜", "寝てない", "休めない", "終わらない", "限界", "死にそう", "無理して", "倒れそう",
+    "ちょっと待て", "無理するな", "ストップ", "休んで", "休もう", "寝よう", "寝なさい", "一旦落ち着け", "落ち着け"
+  ];
+  return brakeKeywords.some(kw => combined.includes(kw));
 }
 
 // PWAミニフローティング吹き出し制御（常時表示仕様・チラつき完全防止）
@@ -2221,7 +2250,6 @@ let currentPwaThinkingRowEl = null;
 
 function showThinkingIndicator(label = "考え中...") {
   hideThinkingIndicator();
-  setAvatarCut("wait", 10000); // 思考カット（07_wait.png）に即時切り替え
 
   if (elements.aiStatusIndicator) {
     elements.aiStatusIndicator.textContent = `✨ ${label}`;
@@ -2442,6 +2470,10 @@ async function callGeminiApi(userPrompt) {
       recordTokenUsage(data.usageMetadata.totalTokenCount);
     }
 
+    if (isLateNight() || checkBrakeIntent(userPrompt, replyText)) {
+      setAvatarCut("wait", 10000);
+    }
+
     addMessageBubble("bot", replyText, null, true);
     speak(replyText);
 
@@ -2517,6 +2549,10 @@ function handleBuiltinResponse(text) {
       'うーん。一回深呼吸して、頭をクリアにしましょうか。'
     ];
     reply = defaultList[Math.floor(Math.random() * defaultList.length)];
+  }
+
+  if (isLateNight() || checkBrakeIntent(text, reply)) {
+    setAvatarCut("wait", 10000);
   }
 
   addMessageBubble("bot", reply, null, true);
@@ -2597,13 +2633,13 @@ async function handleQuickAction(action) {
   if (action === "coach") {
     state.isCoachingMode = true;
     state.coachingTurnCount = 0;
-    setAvatarCut("worried", 5000);
+    setAvatarCut("worried", 10000);
     elements.userInput.placeholder = "💡 モヤモヤしていることを話してみて (⌘+Enterで送信)...";
     elements.userInput.focus();
   } else if (action === "snack") {
-    setAvatarCut("snack", 6000);
+    setAvatarCut("snack", 10000);
   } else if (action === "tired") {
-    setAvatarCut("sleepy", 8000);
+    setAvatarCut("sleepy", 0); // タイマー中はずっと継続
     startTimer(15);
   }
 
@@ -2701,6 +2737,7 @@ function startTimer(minutes) {
       state.activeTimer = null;
       elements.timerBadge.classList.add("hidden");
       playChime();
+      setAvatarCut("normal");
       const msg = `きのぴぃ、${minutes}分経ったよ！お疲れさま！一息つこうね。`;
       addMessageBubble("bot", msg, null, true);
       speak(msg);
